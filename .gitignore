@@ -3,3 +3,5 @@ Release
 Debug
 Build
 
+# Coc related LSP
+.ccls-cache/

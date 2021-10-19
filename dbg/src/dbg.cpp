@@ -5,529 +5,456 @@
 
 #include "pathTraverse.h"
 
-using namespace std;
-using namespace tl;
-
-namespace {
-  thread_local unordered_map<string, git_tree*> sTreeCache;
-}
-
 /**
- * Assert success
- */
-void check(int error)
+ * TODO: Consider introducing RAII. Impact on runtime?
+ * TODO: Make as a library
+ * TODO: Add tests
+ * TODO: Timing and scalabilty checks
+ **/
+namespace dbg
 {
-  if (error < 0)
-  {
-    const git_error *err = git_error_last();
-    cerr << "Git Error(" << error << "):  " << err->klass << "/" << err->message << endl;
-    exit(1);
-  }
-}
+  static inline std::string sRefRoot = "refs/heads/";
 
-  ostream& operator<<(ostream& os, git_tree* tree)
+  std::ostream& operator<<(std::ostream& os, git_tree* tree)
   {
      char buf[10];
      return os << "Tree(" << git_oid_tostr(buf, 9, git_tree_id(tree)) <<")" ;
   }
 
-  ostream& operator<<(ostream& os, git_oid oid)
+  std::ostream& operator<<(std::ostream& os, git_oid oid)
   {
      char buf[10];
      return os << "Object(" << git_oid_tostr(buf, 9, &oid) <<")" ;
   }
 
+  std::string
+  error(char const * const file, int line)
+  {
+    const git_error *err = git_error_last();
+    return std::string("[") + std::to_string(err->klass) + std::string("] ") + file + std::string(":") + std::to_string(line) + std::string(": ") + err->message;
+  }
 
-string error(char const * const file, int line)
-{
-  const git_error *err = git_error_last();
-  return "["s + to_string(err->klass) + "] " + file + ":" + to_string(line) + ": " + err->message;
-}
-#define Error make_unexpected(error(__FILE__, __LINE__))
+  #define Error error(__FILE__, __LINE__)
+  #define Unexpected tl::make_unexpected(error(__FILE__, __LINE__))
 
-bool repositoryExists()
-{
-  return true;
-}
 
-// TODO: Implement
-void createRepository()
-{
-}
+ /**
+  * Repository access abstraction
+  * connets to an existing repositry if not existing creates a new bare repository
+  * in the indicated path, providing there path has write premissions.
+  *
+  * Failure to create or connect to a repository throws an exception
+  **/
+  class Repository
+  {
+    private:
+      git_repository* repo_ = nullptr;
+      const std::string    path_;
+      const std::string    name_;
 
-void createObject()
-{
-}
+      void create(const std::string& path, const std::string& repoName)
+      {
+        git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
 
-void createTree()
-{
-}
+        opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
+        opts.flags |= GIT_REPOSITORY_INIT_BARE ;  /* Bare repository                */
+        opts.description = repoName.data();       /* User given name                */
 
-void commit()
-{
-}
+        if(git_repository_init_ext(&repo_, path_.data(), &opts) != 0)
+          throw std::runtime_error(Error);
+      }
 
-/**
- * Some documentation
- **/
-class Git
-{
-  private:
-    git_repository* repo_ = nullptr;
-    const string    repoPath_;
+    public:
+      Repository(const std::string& path, const std::string& name)
+      :path_(path), name_(name)
+      {
+        git_libgit2_init();
+        if (exists(path_))
+        {
+          if (git_repository_open_ext(&repo_, path_.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) != 0)
+            throw std::runtime_error(Error);
+        }
+        else
+        {
+           create(path_, name_);
+        }
+      }
 
-  public:
-    Git(const std::string& repoPath)
-      :repoPath_(repoPath)
-    {
-      git_libgit2_init();
+      ~Repository()
+      {
+        if (repo_) git_repository_free(repo_);
+        git_libgit2_shutdown();
+      }
+
+      operator git_repository*() const { return repo_; }
+
+      static bool exists(const std::string& repoPath)
+      {
+        return git_repository_open_ext(nullptr, repoPath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) == 0;
+      }
+
+      /* static git_oid oid(char * const sha) */
+      /* { */
+      /*   git_oid ret; */
+      /*   check(git_oid_fromstr(&ret , sha)); */
+      /* return ret; */
+      /* } */
+      /* static std::string sha(git_oid const * oid) */
+      /* { */
+      /*   char buf[GIT_OID_HEXSZ+1]; */
+      /*   return git_oid_tostr(buf, GIT_OID_HEXSZ, oid); */
+      /* } */
+  };
+
+ /**
+  * A structure to convey the context for git chains calls.
+  * Except for the initial commit at least a repo and a branch are needed,
+  * While the rest are interal information for chain calls
+  **/
+  struct context
+  {
+    context(Repository& r, const std::string& ref )
+    :repo_(r), ref_(ref), prevCommitTree_(nullptr), parents_{nullptr, nullptr}, numParents_(0) {}
+
+    Repository& repo_;               /*  git repository             */
+    std::string ref_;                     /*  git reference (branch tip) */
+
+    // Internal chaining information
+    git_tree* prevCommitTree_;       /*  Commit tree                */
+    git_commit const *parents_[2];   /*  Commit parents             */
+    size_t  numParents_;             /*  number of parents          */
+  };
+
+ /**
+  * Retrieves a tree relative to a root tree.
+  * null is returned if the tree does not exists. Any other error is reported
+  *
+  * @param repo[Repository]  : The repository
+  * @param path[std::string] : The relative path
+  * @param root[git_tree]    : Pointer to a root git_tree
+  *
+  * Returned git_tree* must be freed by the caller
+  **/
+  tl::expected<git_tree*, std::string>
+  getTree(Repository& repo,  const std::string& path, git_tree const * root)
+  {
+    git_tree_entry *entry;
+    int result = git_tree_entry_bypath(&entry, root, path.data());
+
+    if (result == GIT_ENOTFOUND)
+      return nullptr;
+
+    if (result !=  GIT_OK )
+      return Unexpected;
+
+    git_tree *tree = nullptr ;
+    if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
+      result = git_tree_lookup(&tree, repo, git_tree_entry_id(entry));
+      git_tree_entry_free(entry);
+      if (result < 0)
+        return Unexpected;
+
+      return tree;
     }
-
-    ~Git()
-    {
-
-      git_libgit2_shutdown();
-    }
-
-    static bool repositoryExists(const std::string& repoPath)
-    {
-      return git_repository_open_ext(nullptr, repoPath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) == 0;
-    }
+    return tl::make_unexpected(path + " is not a direcotry");
+  }
 
 
-    void createRepo(const std::string& repoName)
-    {
-      git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+ /**
+  * Retrieves a blob relative to a root tree.
+  * null is returned if the tree does not exists. Any other error is reported
+  *
+  * @param repo[Repository]  : The repository
+  * @param path[std::string] : The relative path
+  * @param root[git_tree]    : Pointer to a root git_tree
+  *
+  * Returned git_object* must be freed by the caller
+  **/
+  tl::expected<git_blob*, std::string>
+  getBlob(Repository& repo,  const std::string& path, git_tree const * root)
+  {
+    git_object *object;
+    int result = git_object_lookup_bypath(&object, reinterpret_cast<const git_object*>(root), path.data(), GIT_OBJECT_BLOB);
+    if (result != 0)
+      return Unexpected;
 
-      opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
-      opts.flags |=  GIT_REPOSITORY_INIT_BARE ; /* Bare repository */
-      opts.description = repoName.data();
+    /* if (result == GIT_ENOTFOUND) */
+    /*   return tl::make_unexpected(path + " not found); */
 
-      check(git_repository_init_ext(&repo_, "/home/pigmy/dev/git/gitdb/test/orig", &opts));
-    }
+    if (git_object_type(object) == GIT_OBJECT_BLOB)
+      return reinterpret_cast<git_blob*>(object);
 
-    static git_oid oid(char * const sha)
-    {
-      git_oid ret;
+    return tl::make_unexpected(path + " is not a file");
+  }
 
-      check(git_oid_fromstr(&ret , sha));
 
-      return ret;
-    }
+ /**
+  * selecting a repository for chained calls
+  *
+  * @param repo[Repository] : The repository to work with
+  **/
+  tl::expected<context, std::string>
+  repository(Repository& repo)
+  {
+    return context(repo, "HEAD");
+  }
 
-    static std::string sha(git_oid const * oid)
-    {
-      char buf[GIT_OID_HEXSZ+1];
 
-      return git_oid_tostr(buf, GIT_OID_HEXSZ, oid);
-    }
-
-    git_oid createBlob(const string& content)
-    {
-      git_oid oid;
-      check(git_blob_create_from_buffer(&oid, repo_, content.data(), content.size()));
-
-      return oid;
-    }
-
-    git_oid createTree(const string& filename, const string& content)
-		{
-			git_treebuilder *bld = nullptr;
-			check(git_treebuilder_new(&bld, repo_, nullptr));
-
-			/* Add some entries */
-      auto objId = createBlob(content);
-
-			check(git_treebuilder_insert(nullptr, bld,
-					filename.data(),     /* filename */
-					&objId,              /* OID */
-					GIT_FILEMODE_BLOB)); /* mode */
-
-			git_oid oid;
-			check(git_treebuilder_write(&oid, bld));
-			git_treebuilder_free(bld);
-
-			return oid;
-
-			/* git_treebuilder *bld = nullptr; */
-			/* check(git_treebuilder_new(&bld, repo_, nullptr)); */
-
-			/* /1* Add some entries *1/ */
-			/* git_object *obj = nullptr; */
-			/* check(git_revparse_single(&obj, repo_, "HEAD:README.md")); */
-			/* check(git_treebuilder_insert(nullptr, bld, */
-			/* 		"README.md",         /1* filename *1/ */
-			/* 		git_object_id(obj),  /1* OID *1/ */
-			/* 		GIT_FILEMODE_BLOB)); /1* mode *1/ */
-			/* git_object_free(obj); */
-
-			/* check(git_revparse_single(&obj, repo_, "v0.1.0:foo/bar/baz.c")); */
-			/* check(git_treebuilder_insert(NULL, bld, */
-			/* 		"d.c", */
-			/* 		git_object_id(obj), */
-			/* 		GIT_FILEMODE_BLOB)); */
-			/* git_object_free(obj); */
-
-			/* git_oid oid; */
-
-			/* check(git_treebuilder_write(&oid, bld)); */
-			/* git_treebuilder_free(bld); */
-
-			/* return oid; */
-    }
-
-    git_oid createCommit()
-		{
-			git_signature *me = nullptr;
-			check(git_signature_now(&me, "Me", "me@example.com"));
-			git_tree *tree = nullptr;
-
-			git_oid commit_id;
-			check(git_commit_create(
-					&commit_id,
-					repo_,
-					"HEAD",                      /* name of ref to update */
-					me,                          /* author */
-					me,                          /* committer */
-					"UTF-8",                     /* message encoding */
-					"Flooberhaul the whatnots",  /* message */
-					tree,                        /* root tree */
-					0,                           /* parent count */
-					nullptr));                   /* parents */
-			return commit_id;
-    }
-
-    git_oid commit(const string &author,
-                   const string &email,
-                   const string &message,
-                   const string &filename,
-                   const string &content,
-                   size_t nparents,
-									 const git_commit *parents)
-    {
-      // 1. Create BLOB
-      git_oid blobOid;
-      check(git_blob_create_from_buffer(&blobOid, repo_, content.data(), content.size()));
-
-			// 2. Create tree with only 1 File
-			git_treebuilder *bld = nullptr;
-			check(git_treebuilder_new(&bld, repo_, nullptr));
-
-			check(git_treebuilder_insert(nullptr, bld,
-					filename.data(),     /* filename */
-					&blobOid,            /* OID */
-					GIT_FILEMODE_BLOB)); /* mode */
-
-			git_oid treeOid;
-			check(git_treebuilder_write(&treeOid, bld));
-			git_treebuilder_free(bld);
-
-      /****************************************************************************************
-       *    for another directory in between
-       * **************************************************************************************/
-#if 0
-      check(git_treebuilder_new(&bld, repo_, nullptr));
-
-			check(git_treebuilder_insert(nullptr, bld,
-					"root",              /* filename */
-					&treeOid,            /* OID */
-					GIT_FILEMODE_TREE)); /* mode */
-
-			check(git_treebuilder_write(&treeOid, bld));
-			git_treebuilder_free(bld);
-#endif
-      /****************************************************************************************
-       *
-       * **************************************************************************************/
-      // 3. Create a commit
-			git_signature *commiter = nullptr;
-			check(git_signature_now(&commiter, author.data(), email.data()));
-			git_tree *tree = nullptr;
-
-      check(git_tree_lookup( &tree, repo_, &treeOid));
-
-			git_oid commit_id;
-			check(git_commit_create(
-					&commit_id,
-					repo_,
-					"HEAD",          /* name of ref to update */
-					commiter,        /* author */
-					commiter,        /* committer */
-					"UTF-8",         /* message encoding */
-					"root",  /* message */
-				  tree,            /* root tree */
-					0,               /* parent count */
-					nullptr));       /* parents */
-
-			return commit_id;
-    }
-
-    struct context
-    {
-      string ref;
-      /* git_treebuilder* builder; */
-      git_tree* prevCommitTree;
-      git_commit const *  parents[2] = {nullptr, nullptr};
-      size_t  numParents = 1;
-    };
-
-    expected<context, string> chooseBranch(const string& name)
-    {
-      context ctx;
-      ctx.ref = "refs/heads/"s + name;
+ /**
+  * selecting a branch for chained calles
+  *
+  * @param name[std::string] : The branch's name
+  **/
+  auto branch(const std::string& name)
+  {
+    return [&name](context&& ctx) -> tl::expected<context, std::string> {
+      ctx.ref_ = sRefRoot + name;
 
       git_object* commitObj = nullptr;
-
-      if(git_revparse_single(&commitObj, repo_, name.data()) != 0)
-        return Error;
+      if(git_revparse_single(&commitObj, ctx.repo_, name.data()) != 0)
+        return Unexpected;
 
       if (git_object_type(commitObj) != GIT_OBJECT_COMMIT)
-        return make_unexpected(name + " doesn't reference a commit");
+        return tl::make_unexpected(name + " doesn't reference a commit");
 
       git_commit* commit = reinterpret_cast<git_commit*>(commitObj);
 
-      ctx.parents[0] = commit;
+      ctx.parents_[0] = commit;
+      ctx.numParents_ = 1;
 
-      if(git_commit_tree(&ctx.prevCommitTree, commit) != 0)
-        return Error;
+      if(git_commit_tree(&ctx.prevCommitTree_, commit) != 0)
+        return Unexpected;
 
       return std::move(ctx);
-    }
-
-    expected<git_tree*, string> getTree(const string& path, git_tree const * root)
-    {
-      git_tree_entry *entry;
-      int result = git_tree_entry_bypath(&entry, root, path.data());
-
-      if (result == GIT_ENOTFOUND)
-        return nullptr;
-
-      if (result !=  GIT_OK )
-        return Error;
-
-      git_tree *tree = nullptr ;
-      if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
-        result = git_tree_lookup(&tree, repo_, git_tree_entry_id(entry));
-        git_tree_entry_free(entry);
-        if (result < 0)
-          return Error;
-
-        return tree;
-      }
-
-      return make_unexpected(path + " is not a direcotry");
-    }
+    };
+  }
 
 
-    auto addFile(const string& fullpath, const string& content)
-    {
-      return [this, fullpath, content](context&& ctx) -> expected<context, string> {
-        // Blob handling
-        git_oid elemOid;
-        if (git_blob_create_from_buffer(&elemOid, repo_, content.data(), content.size()) != 0)
-           return Error;
+ /**
+  * Adds a file in the current context (repo, branch)
+  *
+  * @param fullpath[std::string] : File name full path (relative to root)
+  * @param content[std::string]  : File contents blob
+  **/
+  auto addFile(const std::string& fullpath, const std::string& content)
+  {
+    return [&fullpath, &content](context&& ctx) -> tl::expected<context, std::string> {
+      // Blob handling
+      git_oid elemOid;
+      if (git_blob_create_from_buffer(&elemOid, ctx.repo_, content.data(), content.size()) != 0)
+         return Unexpected;
 
-        auto mode = GIT_FILEMODE_BLOB;
+      auto mode = GIT_FILEMODE_BLOB;
 
-        PathTraverse pt(fullpath.data());
-        char const * name = pt.filename();
+      PathTraverse pt(fullpath.data());
+      char const * name = pt.filename();
 
-        for (auto [path, dir] : pt)
-        {
-          cout << "Handling " << name << endl;
-
-          auto prev = getTree(path, ctx.prevCommitTree);
-          if (!prev)
-            return Error;
-
-          if (*prev == nullptr)
-            cout << "--  Empty " << path << "( adding " << name << ") " << ctx.prevCommitTree << endl;
-          else
-          {
-            cout << "--  Setting " << path << " from " << *prev << endl;
-          }
-
-          git_treebuilder *bld = nullptr;
-          if (git_treebuilder_new(&bld, repo_, *prev) != 0)
-            return Error;
-
-			    if(git_treebuilder_insert(nullptr, bld, name, &elemOid, mode) != 0)
-            return Error;
-
-          if(git_treebuilder_write(&elemOid, bld) != 0)
-            return Error;
-
-          git_treebuilder_free(bld);
-          mode = GIT_FILEMODE_TREE;
-
-          name = dir;
-        }
+      for (auto [path, dir] : pt)
+      {
+        auto prev = getTree(ctx.repo_, path, ctx.prevCommitTree_);
+        if (!prev)
+          return Unexpected;
 
         git_treebuilder *bld = nullptr;
-        if(git_treebuilder_new(&bld, repo_, ctx.prevCommitTree) != 0)
-          return Error;
+        if (git_treebuilder_new(&bld, ctx.repo_, *prev) != 0)
+          return Unexpected;
 
-        if(git_treebuilder_insert(nullptr, bld, name, &elemOid, mode) != 0)
-          return Error;
+		    if(git_treebuilder_insert(nullptr, bld, name, &elemOid, mode) != 0)
+          return Unexpected;
 
         if(git_treebuilder_write(&elemOid, bld) != 0)
-          return Error;
+          return Unexpected;
 
         git_treebuilder_free(bld);
+        git_tree_free(*prev);
+        mode = GIT_FILEMODE_TREE;
 
-        if(git_tree_lookup(&ctx.prevCommitTree, repo_, &elemOid) != 0)
-          return Error;
-
-        cout << "New tree id: " << ctx.prevCommitTree << endl << endl;
-
-        return std::move(ctx);
-      };
-    }
-
-    auto commit(const string& author, const string& email, const string& message)
-    {
-      return [this, author, email, message](context&& ctx) -> expected<context, string>  {
-
-        git_signature *commiter = nullptr;
-        if(git_signature_now(&commiter, author.data(), email.data()) != 0 )
-          return Error;
-
-        git_oid commit_id;
-        int result = git_commit_create(
-              &commit_id,
-              repo_,
-              ctx.ref.data(),  /* name of ref to update */
-              commiter,                                  /* author */
-              commiter,                                  /* committer */
-              "UTF-8",                                   /* message encoding */
-              message.data(),                            /* message */
-              ctx.prevCommitTree,                        /* root tree */
-              ctx.numParents,                            /* parent count */
-              ctx.parents);                              /* parents */
-        if (result != 0)
-          return Error;
-
-        return ctx;
-      };
-    }
-
-    git_oid commit(const string &branch,
-                   const string &author,
-                   const string &email,
-                   const string &message,
-                   const string &filename,
-                   const string &content)
-    {
-      // 0. Identify the HEAD of the Branch
-      //git_reference* branchRef = nullptr;
-
-      //check(git_branch_lookup(&branchRef, repo_, branch.data(), GIT_BRANCH_LOCAL));
-
-      git_object* commitObj = nullptr;
-      check(git_revparse_single(&commitObj, repo_, branch.data()));
-
-      if (git_object_type(commitObj) != GIT_OBJECT_COMMIT)
-      {
-        cerr << "Not a commit" << branch << endl;
-        exit(1);
+        name = dir;
       }
 
-      git_commit const * parent[] = { reinterpret_cast<git_commit*>(commitObj) };
+      git_treebuilder *bld = nullptr;
+      if(git_treebuilder_new(&bld, ctx.repo_, ctx.prevCommitTree_) != 0)
+        return Unexpected;
 
-      // 1. Create BLOB
-      git_oid blobOid;
-      check(git_blob_create_from_buffer(&blobOid, repo_, content.data(), content.size()));
+      if(git_treebuilder_insert(nullptr, bld, name, &elemOid, mode) != 0)
+        return Unexpected;
 
-			// 2. Create tree with only 1 File
-      git_tree* prevTree = nullptr;
-      check(git_commit_tree(&prevTree, reinterpret_cast<git_commit*>(commitObj)));
-			git_treebuilder *bld = nullptr;
+      if(git_treebuilder_write(&elemOid, bld) != 0)
+        return Unexpected;
 
-			check(git_treebuilder_new(&bld, repo_, prevTree));
+      git_treebuilder_free(bld);
+      git_tree_free(ctx.prevCommitTree_);
 
-			check(git_treebuilder_insert(nullptr, bld,
-					filename.data(),     /* filename */
-					&blobOid,            /* OID */
-					GIT_FILEMODE_BLOB)); /* mode */
+      if(git_tree_lookup(&ctx.prevCommitTree_, ctx.repo_, &elemOid) != 0)
+        return Unexpected;
 
-			git_oid treeOid;
-			check(git_treebuilder_write(&treeOid, bld));
-			git_treebuilder_free(bld);
+      return std::move(ctx);
+    };
+  }
 
-      // 3. Create a commit
-			git_signature *commiter = nullptr;
-			check(git_signature_now(&commiter, author.data(), email.data()));
-			git_tree *tree = nullptr;
+  /**
+   * Commit previous updates to the context(Repository/Branch)
+   *
+   * @param author[std::string]  :  commiter's name (assuming commiter == author)
+   * @param email[std::string]   :  commiter's email
+   * @param message[std::string] :  Commit's message
+   **/
+  auto commit(const std::string& author, const std::string& email, const std::string& message)
+  {
+    return [&author, &email, &message](context&& ctx) -> tl::expected<git_oid, std::string>  {
 
-      check(git_tree_lookup( &tree, repo_, &treeOid));
+      git_signature *commiter = nullptr;
+      if(git_signature_now(&commiter, author.data(), email.data()) != 0 )
+        return Unexpected;
 
-			git_oid commit_id;
-			check(git_commit_create(
-					&commit_id,
-					repo_,
-					("refs/heads/"s + branch).data(),         /* name of ref to update */
-					commiter,        /* author */
-					commiter,        /* committer */
-					"UTF-8",         /* message encoding */
-					message.data(),  /* message */
-					tree,            /* root tree */
-					1,               /* parent count */
-					parent));       /* parents */
+      git_oid commit_id;
+      int result = git_commit_create(
+            &commit_id,
+            ctx.repo_,
+            ctx.ref_.data(),      /* name of ref to update */
+            commiter,             /* author */
+            commiter,             /* committer */
+            "UTF-8",              /* message encoding */
+            message.data(),       /* message */
+            ctx.prevCommitTree_,  /* root tree */
+            ctx.numParents_,      /* parent count */
+            ctx.parents_);        /* parents */
 
-      // Release the tree
+      git_signature_free(commiter);
+      git_tree_free(ctx.prevCommitTree_);
 
-			return commit_id;
-    }
+       for (size_t i = 0; i < ctx.numParents_; ++i)
+         git_commit_free(const_cast<git_commit*>(ctx.parents_[i]));
 
-    void createBranch(const git_oid& commitId, const string& name)
-    {
+      ctx.prevCommitTree_ = nullptr;
+      ctx.numParents_ = 0;
+
+      if (result != 0)
+        return Unexpected;
+
+      return commit_id;
+    };
+  }
+
+  /**
+   * Creates a branch in a given repository
+   *
+   * @param commitId[git_oid] : The originating commit for the branch
+   * @param name[std::string]      : Branch name
+   **/
+  auto bifurcate(const git_oid& commitId, const std::string& name)
+  {
+     return [&commitId, &name](context&& ctx) -> tl::expected<context, std::string> {
        git_commit *commit = nullptr;
-       check(git_commit_lookup(&commit, repo_, &commitId));
+       int result = git_commit_lookup(&commit, ctx.repo_, &commitId);
+       if (result != 0)
+         return Unexpected;
 
        git_reference* branchRef = nullptr;
-       check(git_branch_create(&branchRef, repo_, name.data(), commit, 0 /* no force */));
+       result = git_branch_create(&branchRef, ctx.repo_, name.data(), commit, 0 /* no force */);
+       if (result != 0)
+        return Unexpected;
 
        git_reference_free(branchRef);
        git_commit_free(commit);
-    }
+
+       return std::move(ctx);
+     };
+  }
+
+  /**
+   *
+   **/
+  auto read(const std::string& fullpath)
+  {
+    return [&fullpath](context&& ctx) -> tl::expected<std::string, std::string> {
+      auto blob = getBlob(ctx.repo_, fullpath, ctx.prevCommitTree_);
+      if (!blob)
+        return tl::make_unexpected(blob.error());
+
+      git_blob_filter_options opts = GIT_BLOB_FILTER_OPTIONS_INIT;
+
+      git_buf buffer = GIT_BUF_INIT_CONST("", 0);
+      if (git_blob_filter(&buffer, *blob, fullpath.data(), &opts) != 0)
+        return Unexpected;
+
+      std::string content(buffer.ptr, buffer.size);
+
+      git_buf_dispose(&buffer);
+      git_buf_free(&buffer);
+      git_blob_free(*blob);
+
+      // TODO: Same as in commit, consider adding this as dtor/utilty function or RAII
+      git_tree_free(ctx.prevCommitTree_);
+
+       for (size_t i = 0; i < ctx.numParents_; ++i)
+         git_commit_free(const_cast<git_commit*>(ctx.parents_[i]));
+
+      return  content;
+    };
+  }
+
 };
+
+using namespace dbg;
 
 int main() {
 
-  Git git("/home/pigmy/dev/git/gitdb/test/generated");
+  Repository repo("/home/pigmy/dev/git/gitdb/test/orig", "test db");
 
-  git.createRepo("ENV Test");
-  git_oid commitId = git.commit("mno", "mno@nowhere.spec", "init", "README", "ENV disclaimer", 0, nullptr);
+  // Initial commit. is performed on the main branch, but it cannnot reference it yet.
+  // As a branch is reference to a commit. when there are not yet any.
+  auto commitId = repository(repo)
+    .and_then(addFile("README", "bla bla\n"))
+    .and_then(commit("mno", "mno@nowhere.org", "...\n"));
 
-  git.createBranch(commitId, "one");
-  git.createBranch(commitId, "two");
-  git.createBranch(commitId, "three");
+  if (!commitId)
+    std::cout <<  "Failed to create first commit" << commitId.error() << std::endl;
 
-  auto res = git.chooseBranch("master")
-    .and_then(git.addFile("src/content/new.txt", "contentssssss"))
-    .and_then(git.addFile("src/content/sub/more.txt", "check check"))
-    .and_then(git.commit("mno", "mno@nowhere.org", "comment is long"));
-
-  if (!res)
-    cout << res.error() << endl;
-
-  res = git.chooseBranch("one")
-    .and_then(git.addFile("src/dev/c++/hello.cpp", "#include <hello.h>"))
-    .and_then(git.addFile("src/dev/inc/hello.h", "#pragma once\n"))
-    .and_then(git.commit("mno", "mno@nowhere.org", "comment is long"));
+  auto res =repository(repo)
+    .and_then(bifurcate(*commitId, "one"))
+    .and_then(bifurcate(*commitId, "two"))
+    .and_then(bifurcate(*commitId, "three"));
 
   if (!res)
-    cout << res.error() << endl;
+    std::cout << "Unable to create branches: " << res.error() << std::endl;
 
-  res = git.chooseBranch("two")
-    .and_then(git.addFile("dictionary/music/a/abba", "mama mia"))
-    .and_then(git.addFile("dictionary/music/p/petshop", "boys"))
-    .and_then(git.addFile("dictionary/music/s/sandra", "dreams"))
-    .and_then(git.commit("mno", "mno@nowhere.org", "comment is long"));
+  commitId = repository(repo)
+             .and_then(branch("master"))
+             .and_then(addFile("src/content/new.txt", "contentssssss"))
+             .and_then(addFile("src/content/sub/more.txt", "check check"))
+             .and_then(commit("mno", "mno@nowhere.org", "comment is long"));
 
   if (!res)
-    cout << res.error() << endl;
+    std::cout << res.error() << std::endl;
 
+  commitId = repository(repo)
+             .and_then(branch("one"))
+             .and_then(addFile("src/dev/c++/hello.cpp", "#include <hello.h>"))
+             .and_then(addFile("src/dev/inc/hello.h", "#pragma once\n"))
+             .and_then(commit("mno", "mno@nowhere.org", "comment is long"));
+
+  if (!res)
+    std::cout << res.error() << std::endl;
+
+  commitId  = repository(repo)
+              .and_then(branch("two"))
+              .and_then(addFile("dictionary/music/a/abba", "mama mia"))
+              .and_then(addFile("dictionary/music/p/petshop", "boys"))
+              .and_then(addFile("dictionary/music/s/sandra", "dreams\nare dreams"))
+              .and_then(commit("mno", "mno@nowhere.org", "comment is long"));
+
+  if (!res)
+    std::cout << res.error() << std::endl;
+
+  auto content = repository(repo)
+                .and_then(branch("two"))
+                .and_then(read("dictionary/music/s/sandra"));
+
+  if (!content)
+    std::cout << "Unable to read file: " << content.error() << std::endl;
+
+  std::cout << "Content: " << *content << std::endl;
 
   return 0;
 }

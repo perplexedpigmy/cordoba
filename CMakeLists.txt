@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
-
 project(gitdb)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Configuration support
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
+  STRINGS Release Debug
+)
 
 enable_testing()
-add_subdirectory(dbg)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 # print available variables
 function(dump_cmake_variables)
@@ -22,3 +25,7 @@ function(dump_cmake_variables)
         message(STATUS "${_variableName}=${${_variableName}}")
     endforeach()
 endfunction()
+ dump_cmake_variables()
+
+
+add_subdirectory(main)

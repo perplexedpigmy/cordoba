@@ -51,7 +51,10 @@ target_link_libraries(gd PUBLIC expected)
 
 # export(TARGETS gd FILE MyLibraryConfig.cmake)
 
-add_executable(gdtest test/testPathTraverser.cpp)
+add_executable(gdtest
+                 test/testPathTraverser.cpp
+                 test/testgd.cpp)
+
 target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set_target_properties(gdtest
   PROPERTIES
@@ -60,7 +63,10 @@ set_target_properties(gdtest
     CXX_STANDARD_REQUIRED ON
 )
 
-target_link_libraries(gdtest PRIVATE Catch2)
+target_link_libraries(gdtest PRIVATE
+   Catch2
+   gd
+   stdc++fs)
 target_include_directories(gdtest PRIVATE inc)
 
 add_test( NAME pathTraverse COMMAND $<TARGET_FILE:gdtest> --success)

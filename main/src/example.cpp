@@ -1,21 +1,24 @@
 #include <gd/gd.h>
 
 using namespace gd;
+using namespace std;
 
 int main() {
 
-  Repository repo("/home/pigmy/dev/git/gitdb/test/orig", "test db");
+  std::atexit(gd::cleanup);
+
+  const string repoPath = "/home/pigmy/dev/git/test/orig";
 
   // Initial commit. is performed on the main branch, but it cannnot reference it yet.
   // As a branch is reference to a commit. when there are not yet any.
-  auto commitId = selectRepository(repo)
+  auto commitId = selectRepository(repoPath)
     .and_then(addFile("README", "bla bla\n"))
     .and_then(commit("mno", "mno@nowhere.org", "...\n"));
 
   if (!commitId)
     std::cout <<  "Failed to create first commit" << commitId.error() << std::endl;
 
-  auto res =selectRepository(repo)
+  auto res =selectRepository(repoPath)
     .and_then(fork(*commitId, "one"))
     .and_then(fork(*commitId, "two"))
     .and_then(fork(*commitId, "three"));
@@ -23,7 +26,7 @@ int main() {
   if (!res)
     std::cout << "Unable to create branches: " << res.error() << std::endl;
 
-  commitId = selectRepository(repo)
+  commitId = selectRepository(repoPath)
              .and_then(selectBranch("master"))
              .and_then(addFile("src/content/new.txt", "contentssssss"))
              .and_then(addFile("src/content/sub/more.txt", "check check"))
@@ -32,7 +35,7 @@ int main() {
   if (!res)
     std::cout << res.error() << std::endl;
 
-  commitId = selectRepository(repo)
+  commitId = selectRepository(repoPath)
              .and_then(selectBranch("one"))
              .and_then(addFile("src/dev/c++/hello.cpp", "#include <hello.h>"))
              .and_then(addFile("src/dev/inc/hello.h", "#pragma once\n"))
@@ -41,7 +44,7 @@ int main() {
   if (!res)
     std::cout << res.error() << std::endl;
 
-  commitId  = selectRepository(repo)
+  commitId  = selectRepository(repoPath)
               .and_then(selectBranch("two"))
               .and_then(addFile("dictionary/music/a/abba", "mama mia"))
               .and_then(addFile("dictionary/music/p/petshop", "boys"))
@@ -51,7 +54,7 @@ int main() {
   if (!res)
     std::cout << res.error() << std::endl;
 
-  auto content = selectRepository(repo)
+  auto content = selectRepository(repoPath)
                 .and_then(selectBranch("two"))
                 .and_then(read("dictionary/music/s/sandra"));
 

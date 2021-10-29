@@ -1,6 +1,7 @@
 #include <gd/gd.h>
 #include <pathTraverse.h>
-
+#include <map>
+#include <mutex>
   /* std::ostream& operator<<(std::ostream& os, git_tree* tree) */ /* { */
   /*    char buf[10]; */
   /*    return os << "Tree(" << git_oid_tostr(buf, 9, git_tree_id(tree)) <<")" ; */
@@ -24,59 +25,69 @@
       /*   char buf[GIT_OID_HEXSZ+1]; */
       /*   return git_oid_tostr(buf, GIT_OID_HEXSZ, oid); */
       /* } */
-std::string error(char const * const file, int line) noexcept
-{
-  const git_error *err = git_error_last();
-  return std::string("[") + std::to_string(err->klass) + std::string("] ") + file + std::string(":") + std::to_string(line) + std::string(": ") + err->message;
-}
+namespace {
+  std::string error(char const * const file, int line) noexcept
+  {
+    const git_error *err = git_error_last();
+    return std::string("[") + std::to_string(err->klass) + std::string("] ") + file + std::string(":") + std::to_string(line) + std::string(": ") + err->message;
+  }
+
 
 #define Error error(__FILE__, __LINE__)
 #define Unexpected tl::make_unexpected(error(__FILE__, __LINE__))
 
 
-gd::Repository::Repository(const std::string& path, const std::string& name)
-  :path_(path), name_(name)
-{
-  git_libgit2_init();
-  if (exists(path_))
+  static std::mutex sCacheAccess;
+  static std::unordered_map<std::string, gd::context> sRepoCache;
+  static bool sInitialized{false};
+  static std::string sRefRoot{"refs/heads/"};
+
+
+  /**
+   * Create a repository at a given path with a given name
+   **/
+  tl::expected<gd::context, std::string>
+  createRepo(const std::string& path, const std::string& name)
   {
-    if (git_repository_open_ext(&repo_, path_.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) != 0)
-      throw std::runtime_error(Error);
+    git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+
+    opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
+    opts.flags |= GIT_REPOSITORY_INIT_BARE ;  /* Bare repository                */
+    opts.description = name.data();       /* User given name                */
+
+    gd::context ctx;
+    if(git_repository_init_ext(&ctx.repo_, path.data(), &opts) != 0)
+      return Unexpected;
+
+    sRepoCache.emplace(path, ctx);
+
+    return ctx;
   }
-  else
-    create(path_, name_);
+
+
+  /**
+   * Returns true if a repository already exists, otherwise false
+   **/
+  bool repoExists(const std::string& repoPath) noexcept
+  {
+    return git_repository_open_ext(nullptr, repoPath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) == 0;
+  }
 }
 
-gd::Repository::~Repository()
+void gd::cleanup()
 {
-  if (repo_) git_repository_free(repo_);
+  std::lock_guard<std::mutex> lock(sCacheAccess);
+
+  for (const auto& [path, ctx] : sRepoCache)
+    git_repository_free(ctx.repo_);
+
   git_libgit2_shutdown();
-}
-
-
-bool
-gd::Repository::exists(const std::string& repoPath) noexcept
-{
-  return git_repository_open_ext(nullptr, repoPath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, NULL) == 0;
-}
-
-
-void
-gd::Repository::create(const std::string& path, const std::string& repoName)
-{
-  git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
-
-  opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
-  opts.flags |= GIT_REPOSITORY_INIT_BARE ;  /* Bare repository                */
-  opts.description = repoName.data();       /* User given name                */
-
-  if(git_repository_init_ext(&repo_, path_.data(), &opts) != 0)
-    throw std::runtime_error(Error);
+  sRepoCache.clear();
 }
 
 
 tl::expected<git_tree*, std::string>
-gd::getTree(Repository& repo, const std::string& path, git_tree const * root) noexcept
+gd::getTree(gd::context& ctx, const std::string& path, git_tree const * root) noexcept
 {
   git_tree_entry *entry;
   int result = git_tree_entry_bypath(&entry, root, path.data());
@@ -89,7 +100,7 @@ gd::getTree(Repository& repo, const std::string& path, git_tree const * root) no
 
   git_tree *tree = nullptr ;
   if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
-    result = git_tree_lookup(&tree, repo, git_tree_entry_id(entry));
+    result = git_tree_lookup(&tree, ctx.repo_, git_tree_entry_id(entry));
     git_tree_entry_free(entry);
     if (result < 0)
       return Unexpected;
@@ -101,7 +112,7 @@ gd::getTree(Repository& repo, const std::string& path, git_tree const * root) no
 
 
 tl::expected<git_blob*, std::string>
-gd::getBlob(Repository& repo,  const std::string& path, git_tree const * root) noexcept
+gd::getBlob(gd::context& ctx,  const std::string& path, git_tree const * root) noexcept
 {
   git_object *object;
   int result = git_object_lookup_bypath(&object, reinterpret_cast<const git_object*>(root), path.data(), GIT_OBJECT_BLOB);
@@ -116,15 +127,39 @@ gd::getBlob(Repository& repo,  const std::string& path, git_tree const * root) n
 
 
 tl::expected<gd::context, std::string>
-gd::selectRepository(Repository& repo) noexcept
+gd::selectRepository(const std::string& fullpath, const std::string& name) noexcept
 {
-  return context(repo, "HEAD");
+  std::lock_guard<std::mutex> lock(sCacheAccess);
+
+  auto itr = sRepoCache.find(fullpath);
+  if (itr != sRepoCache.end())
+    return itr->second;
+
+  if (!sInitialized)
+    sInitialized = git_libgit2_init() > 0;
+
+  gd::context ctx;
+  if (repoExists(fullpath))
+  {
+    if (git_repository_open_ext(&ctx.repo_, fullpath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, nullptr) != 0)
+      return Unexpected;
+
+    return ctx;
+  }
+
+  return createRepo(fullpath, name);
 }
 
 
 tl::expected<gd::context, std::string>
 gd::ni::selectBranch(gd::context&& ctx, const std::string& name) noexcept
 {
+  if (not sInitialized)
+    return tl::make_unexpected("Git not initalized");
+
+  if (not ctx.repo_)
+    return tl::make_unexpected("No Repository was selected");
+
   ctx.ref_ = sRefRoot + name;
 
   git_object* commitObj = nullptr;
@@ -149,6 +184,15 @@ gd::ni::selectBranch(gd::context&& ctx, const std::string& name) noexcept
 tl::expected<gd::context, std::string>
 gd::ni::addFile(gd::context&& ctx, const std::string& fullpath, const std::string& content) noexcept
 {
+  if (not sInitialized)
+    return tl::make_unexpected("Git not initalized");
+
+  if (not ctx.repo_)
+    return tl::make_unexpected("Repository not selected");
+
+  if(ctx.ref_.empty())
+    return tl::make_unexpected("Branch not selected");
+
   git_oid elemOid;
   if (git_blob_create_from_buffer(&elemOid, ctx.repo_, content.data(), content.size()) != 0)
     return Unexpected;
@@ -160,7 +204,7 @@ gd::ni::addFile(gd::context&& ctx, const std::string& fullpath, const std::strin
 
   for (auto [path, dir] : pt)
   {
-    auto prev = getTree(ctx.repo_, path, ctx.prevCommitTree_);
+    auto prev = getTree(ctx, path, ctx.prevCommitTree_);
     if (!prev)
       return Unexpected;
 
@@ -260,7 +304,7 @@ gd::ni::fork(gd::context&& ctx, const git_oid& commitId, const std::string& name
 tl::expected<std::string, std::string>
 gd::ni::read(gd::context&& ctx, const std::string& fullpath) noexcept
 {
-  auto blob = getBlob(ctx.repo_, fullpath, ctx.prevCommitTree_);
+  auto blob = getBlob(ctx, fullpath, ctx.prevCommitTree_);
   if (!blob)
     return tl::make_unexpected(blob.error());
 

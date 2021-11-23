@@ -32,7 +32,7 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
   remove_all(testRepoPath);
 
   auto commitId = selectRepository(testRepoPath)
-    .and_then(addFile(initialFile, initialContent))
+    .and_then(add(initialFile, initialContent))
     .and_then(commit("mno", "mno@nowhere.org", "...\n"));
 
 
@@ -56,13 +56,13 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
                                                            { "dir/aa/f", "contents of dir/aa/f" } };
 
     auto res =selectRepository(testRepoPath)
-      .and_then(fork(*commitId, "one"));
+      .and_then(createBranch(*commitId, "one"));
 
     for (const auto& [file, contents] : fileAndContents)
     {
       auto branchContent = selectRepository(testRepoPath)
         .and_then(selectBranch("one"))
-        .and_then(addFiles(fileAndContents))
+        .and_then(add(fileAndContents))
         .and_then(read(file));
 
       REQUIRE(!branchContent == false);
@@ -76,5 +76,4 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
   SECTION("") {
   }
 
-  gd::cleanup();
 }

@@ -1,0 +1,24 @@
+
+{
+  "main/src/example.cpp": {
+    "type": "main",
+  },
+
+  "main/src/generator.h": {
+    "type": "generator",
+  },
+
+  "main/gd/test/testgd.cpp": {
+    "type": "test",
+  },
+
+  "main/gd/src/*.cpp": {
+    "type": "src",
+    "alternate": "main/gd/inc/gd/{}.h"
+  },
+
+  "main/gd/inc/gd/*.h": {
+    "type": "header",
+    "alternate": "main/gd/src/{}.cpp"
+  }
+}

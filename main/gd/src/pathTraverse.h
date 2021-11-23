@@ -9,7 +9,8 @@
  * The path always contains a filename (right most entry)
  *
  * The class is constructed for the benefit of its dbg application usage.
- * The filenme is identified and the directory structure can be traversed in reverse order
+ * The filenme is identified and the directory structure can be traversed in reverse order.
+ * From path containing the leaf(file) to the outermost directory.
  * This is due to the libgit2 needs of tree construction from leaf(file) all the way through
  * the containing directory stucture up to the tree associated with the commit.
  *

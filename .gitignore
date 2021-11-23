@@ -2,6 +2,7 @@
 Release
 Debug
 Build
+distributed.tooling
 
 # Coc related LSP
 .ccls-cache/

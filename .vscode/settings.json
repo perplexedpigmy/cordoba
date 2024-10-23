@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "*.tcc": "cpp",
+    "expected": "cpp",
+    "string": "cpp",
+    "future": "cpp",
+    "system_error": "cpp",
+    "regex": "cpp",
+    "tuple": "cpp",
+    "iosfwd": "cpp"
+  }
+}

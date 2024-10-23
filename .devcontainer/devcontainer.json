@@ -1,0 +1,30 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+	"name": "C++13 development with openCV support",
+	"build": {	
+		"context": "..", // Sets the run context to one level up instead of the .devcontainer folder.
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers-contrib/features/bin:1": {},
+		"ghcr.io/christophermacgown/devcontainer-features/direnv:1": {},
+		"ghcr.io/akhildevelops/devcontainer-features/apt:0": {}
+	},
+	"customizations": {	
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cpptools-extension-pack",
+				"twxs.cmake",
+				"DavidAnson.vscode-markdownlint",
+				"ms-azuretools.vscode-docker"
+			]
+		}
+	},  
+	"containerUser": "lynx",
+	"mounts": [
+		// command history is kept in .devcontainer/.bashrc file
+		"source=./.devcontainer,target=/cmdhistory,type=bind"
+	],
+}

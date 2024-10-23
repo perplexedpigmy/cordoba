@@ -6,7 +6,11 @@
 #include <string>
 #include <set>
 #include <memory>
+#include <ostream>
 
+// Easy switch from tl standard expected
+template <typename T, typename E>
+using expected = tl::expected<T,E>;
 
 /**
  * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)
@@ -31,6 +35,32 @@
  **/
 namespace gd
 {
+  enum class ErrorType {
+    MissingRepository,
+    BadDir,
+    BadFile,
+    BadCommit,
+    EmptyCommit,
+    BlobError,
+    GitError,
+  };
+
+  struct Error {
+    Error(char const * const file, int line, ErrorType type, const std::string&& msg) noexcept
+    :_file(file), _line(line), _type(type), _msg(msg) {}
+
+    char const * _file;
+    int          _line;
+    ErrorType    _type;
+    std::string  _msg;
+
+    operator std::string() const noexcept 
+    {
+      return  std::string() + _file + ":" + std::to_string(_line) + "  " + _msg;
+    }
+  };
+
+
  constexpr char const * defaultRef = "HEAD";
 
  /**
@@ -49,7 +79,7 @@ namespace gd
       Node& operator=(Node&& other) noexcept;
 
       void reset() noexcept;
-      static tl::expected<::gd::context, std::string> init(::gd::context&& ctx) noexcept;
+      static expected<::gd::context, Error> init(::gd::context&& ctx) noexcept;
 
       ~Node() {  reset();  }
 
@@ -70,7 +100,7 @@ namespace gd
     void setRepo(git_repository* repo) noexcept;
     void setBranch(const std::string& fullPathRef) noexcept;
 
-    tl::expected<::gd::context, std::string> updateCommitTree(const git_oid& treeOid) noexcept;
+    expected<::gd::context, Error> updateCommitTree(const git_oid& treeOid) noexcept;
 
     git_repository* repo_;         /*  git repository             */
     std::string ref_;              /*  git reference (branch tip) */
@@ -89,24 +119,25 @@ namespace gd
    **/
   namespace ni
   {
-    tl::expected<context, std::string> selectBranch(context&& ctx, const std::string& name) noexcept;
-    tl::expected<context, std::string> add(context&& ctx, const std::string& fullpath, const std::string& content) noexcept;
-    tl::expected<context, std::string> del(context&& ctx, const std::string& fullpath) noexcept;
-    tl::expected<context, std::string> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
-    tl::expected<context, std::string> createBranch(context&& ctx, const git_oid& commitId, const std::string& name) noexcept;
-    tl::expected<git_oid, std::string> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
-    tl::expected<context, std::string> rollback(context&& ctx) noexcept;
+    expected<context, Error> selectBranch(context&& ctx, const std::string& name) noexcept;
+    expected<context, Error> add(context&& ctx, const std::string& fullpath, const std::string& content) noexcept;
+    expected<context, Error> del(context&& ctx, const std::string& fullpath) noexcept;
+    expected<context, Error> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
+    expected<context, Error> createBranch(context&& ctx, const git_oid& commitId, const std::string& name) noexcept;
+    expected<git_oid, Error> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
+    expected<context, Error> rollback(context&& ctx) noexcept;
 
-    tl::expected<std::string, std::string> read(context&& ctx, const std::string& fullpath) noexcept;
+    expected<std::string, Error> read(context&& ctx, const std::string& fullpath) noexcept;
   }
 
+  bool cleanRepo(const std::string& repoFullPath) noexcept;
 
  /**
   * selecting a repository for chained calls
   *
   * @param repo[Repository] : The repository to work with
   **/
-  tl::expected<context, std::string>
+  expected<context, Error>
   selectRepository(const std::string& fullpath, const std::string& name = "") noexcept;
 
  /**
@@ -116,7 +147,7 @@ namespace gd
   **/
   inline auto selectBranch(const std::string& name) noexcept
   {
-    return [&name](context&& ctx) -> tl::expected<context, std::string> {
+    return [&name](context&& ctx) -> expected<context, Error> {
       return ni::selectBranch(std::move(ctx), name);
     };
   }
@@ -129,7 +160,7 @@ namespace gd
   **/
   inline auto add(const std::string& fullpath, const std::string& content) noexcept
   {
-    return [&fullpath, &content](context&& ctx) -> tl::expected<context, std::string> {
+    return [&fullpath, &content](context&& ctx) -> expected<context, Error> {
       return ni::add(std::move(ctx), fullpath, content);
     };
   }
@@ -142,7 +173,7 @@ namespace gd
   **/
   inline auto del(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> tl::expected<context, std::string> {
+    return [&fullpath](context&& ctx) -> expected<context, Error> {
       return ni::del(std::move(ctx), fullpath);
     };
   }
@@ -155,7 +186,7 @@ namespace gd
   **/
   inline auto mv(const std::string& fullpath, const std::string& toFullpath) noexcept
   {
-    return [&fullpath, &toFullpath](context&& ctx) -> tl::expected<context, std::string> {
+    return [&fullpath, &toFullpath](context&& ctx) -> expected<context, Error> {
       return ni::mv(std::move(ctx), fullpath, toFullpath);
     };
   }
@@ -167,8 +198,8 @@ namespace gd
   **/
   inline auto add(const std::set<std::pair<std::string, std::string> >& filesAndContents) noexcept
   {;
-    return [&filesAndContents](context&& ctx) -> tl::expected<context, std::string> {
-      tl::expected<context, std::string>  foldingCtx(std::move(ctx));
+    return [&filesAndContents](context&& ctx) -> expected<context, Error> {
+      expected<context, Error>  foldingCtx(std::move(ctx));
 
       for (const auto& [fullpath, content] : filesAndContents)
       {
@@ -191,7 +222,7 @@ namespace gd
    **/
   inline auto commit(const std::string& author, const std::string& email, const std::string& message) noexcept
   {
-    return [&author, &email, &message](context&& ctx) -> tl::expected<git_oid, std::string>  {
+    return [&author, &email, &message](context&& ctx) -> expected<git_oid, Error>  {
        return ni::commit(std::move(ctx), author, email, message);
     };
   }
@@ -206,7 +237,7 @@ namespace gd
    **/
   inline auto rollback() noexcept
   {
-    return [](context&& ctx) -> tl::expected<context, std::string>  {
+    return [](context&& ctx) -> expected<context, Error>  {
        return ni::rollback(std::move(ctx));
     };
   }
@@ -218,7 +249,7 @@ namespace gd
    **/
   inline auto createBranch(const git_oid& commitId, const std::string& name) noexcept
   {
-     return [&commitId, &name](context&& ctx) -> tl::expected<context, std::string> {
+     return [&commitId, &name](context&& ctx) -> expected<context, Error> {
        return ni::createBranch(std::move(ctx), commitId, name);
      };
   }
@@ -229,7 +260,7 @@ namespace gd
    **/
   inline auto read(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> tl::expected<std::string, std::string> {
+    return [&fullpath](context&& ctx) -> expected<std::string, Error> {
       return ni::read(std::move(ctx), fullpath);
     };
   }
@@ -237,13 +268,13 @@ namespace gd
   namespace shorthand {
 
     template <typename L, typename F>
-    auto operator >>(tl::expected<L, std::string>&& lhs, F&& f)
+    auto operator >>(expected<L, Error>&& lhs, F&& f)
     {
       return std::move(lhs).and_then(std::forward<F>(f));
     }
 
     template <typename L, typename F>
-    auto operator ||(tl::expected<L, std::string>&& lhs, F&& f)
+    auto operator ||(expected<L, Error>&& lhs, F&& f)
     {
       return std::move(lhs).or_else(std::forward<F>(f));
     }
@@ -267,7 +298,7 @@ namespace gd
     class ThreadChainingContext {};
     static ThreadChainingContext db;
 
-    tl::expected<context, std::string> getThreadContext() noexcept;
+    expected<context, Error> getThreadContext() noexcept;
 
     template <typename F>
     auto operator >>(ThreadChainingContext, F&& f)
@@ -301,7 +332,7 @@ namespace gd
      * Note that db >> commit(...) does not return a context and thus farther chaining is not possible.
      **/
     template <typename L, typename F>
-    auto operator >>(tl::expected<L, std::string>& lhs, F&& f) ->
+    auto operator >>(expected<L, Error>& lhs, F&& f) ->
     std::enable_if_t<
       std::is_same<
         L,
@@ -329,7 +360,7 @@ namespace gd
      * But allowing the kept context means that we are handling an lvalue.
      *
      * This operator handles the lvalue when its provided predicate F is ** different ** than Payload 'L'
-     * In this case we can not update lhs, but we have to return a new tl::expected
+     * In this case we can not update lhs, but we have to return a new expected
      *
      * TODO: the following sentence is an ideal but can't yet be implemented.
      *        L's lhs will have to be updated, but it's already moved (and lost) in f
@@ -338,7 +369,7 @@ namespace gd
      * Note that it's possible to continue using the db as shown on line 4.
      **/
     template <typename L, typename F>
-    auto operator >>(tl::expected<L, std::string>& lhs, F&& f) ->
+    auto operator >>(expected<L, Error>& lhs, F&& f) ->
     std::enable_if_t<
       !std::is_same<
         L,
@@ -352,3 +383,5 @@ namespace gd
 
   }
 };
+
+std::ostream& operator<<(std::ostream&, const gd::Error&) noexcept;

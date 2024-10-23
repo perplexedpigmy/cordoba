@@ -19,7 +19,8 @@ set_target_properties(gd
 # -frecord-gcc-switches can be read via
 #   readelf -p .GCC.command.line <binary>
 #   readelf -wi <binary> | grep DW_AT_producer
-list(APPEND CXX_FLAGS_DEBUG   -p -g3 -frecord-gcc-switches)
+# list(APPEND CXX_FLAGS_DEBUG   -p -g3 -frecord-gcc-switches)
+list(APPEND CXX_FLAGS_DEBUG   -g3 -frecord-gcc-switches)
 list(APPEND CXX_FLAGS_RELEASE -g3)
 
 target_compile_options(gd PUBLIC

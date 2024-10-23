@@ -1,10 +1,7 @@
 #include <gd/gd.h>
 
 #include <filesystem>
-#include <random>
 #include <vector>
-#include <map>
-#include <array>
 #include <stdexcept>
 #include <iostream>
 #include <ios>
@@ -13,7 +10,7 @@
 #include "generator.h"
 
 using namespace gd;
-using namespace gd::shorthand; // Support chaining via > and |
+using namespace gd::shorthand; // Support chaining via >> and ||
 using namespace std;
 
 inline void assertError(char const * msg, const string& err)
@@ -97,7 +94,7 @@ void speedTest()
   const std::vector<std::string> domains{ "AB", "AS", "UT", "AC", "RT", "TZ", "AD", "AZ", "PT", "RS", "PT", "TV", "VZ"};
 
   auto dbx = selectRepository(repoPath);
-  for (size_t numFiles = 1; numFiles <= 10'000; numFiles *= 10)
+  for (size_t numFiles = 1; numFiles <= 1'000; numFiles *= 10)
   {
     auto start = chrono::steady_clock::now();
 

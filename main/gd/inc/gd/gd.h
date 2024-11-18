@@ -1,7 +1,12 @@
 #pragma once
 
 #include <git2.h>
+
+// #if __cpp_lib_expected >= 202211L 
+// #include <expected>
+// #elif
 #include <tl/expected.hpp>
+// #endif
 
 #include <string>
 #include <set>
@@ -9,8 +14,11 @@
 #include <ostream>
 
 // Easy switch from tl standard expected
+//template <typename T, typename E>
+///using expected = std::expected<T,E>;
 template <typename T, typename E>
 using expected = tl::expected<T,E>;
+
 
 /**
  * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)

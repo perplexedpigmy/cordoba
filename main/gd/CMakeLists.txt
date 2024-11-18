@@ -1,11 +1,11 @@
-CMAKE_MINIMUM_REquired(VERSION 3.14 FATAL_ERROR)
+CMAKE_MINIMUM_Required(VERSION 3.19 FATAL_ERROR)
 
 add_library(gd STATIC
             src/gd.cpp)
 
 set_target_properties(gd
     PROPERTIES
-      CXX_STANDARD 17
+      CXX_STANDARD 23 
       CXX_EXTENSIONS OFF
       CXX_STANDARD_REQUIRED ON
       SOVERSION 0.1
@@ -78,7 +78,7 @@ add_executable(gdtest
 target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set_target_properties(gdtest
   PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 23
     CXX_EXTENSIONS OFF
     CXX_STANDARD_REQUIRED ON
 )

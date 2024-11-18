@@ -5,7 +5,7 @@
 #include <mutex>
 #include <iostream>
 #include <shared_mutex>
-#include <experimental/filesystem>
+#include <filesystem>
 
 /* std::ostream& operator<<(std::ostream& os, git_tree* tree) */ /* { */
 /*    char buf[10]; */
@@ -53,14 +53,6 @@ namespace {
   /**
    * Error handling functions
    **/
-  // std::string error(char const * const file, int line) noexcept
-  // {
-  //   const git_error *err = git_error_last();
-  //   return std::string("[") + std::to_string(err->klass) + std::string("] ") + file + std::string(":") + std::to_string(line) + std::string(": ") + err->message;
-  // }
-
-  // #define Error error(__FILE__, __LINE__)
-  // #define Unexpected tl::make_unexpected(error(__FILE__, __LINE__))
 
   std::string strigify_git_error() noexcept {
     const git_error *err = git_error_last();
@@ -141,7 +133,7 @@ namespace {
         repoCache_.erase(repoFullPath);
         removed = true;
       }
-      std::experimental::filesystem::remove_all(repoFullPath);;
+      std::filesystem::remove_all(repoFullPath);;
       return removed;
     }
 

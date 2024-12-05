@@ -12,15 +12,18 @@
 #include <set>
 #include <memory>
 #include <ostream>
+#include <filesystem>
+#include <iostream>
+#include <map>
+#include <guard.h>
 
-// Easy switch from tl standard expected
-//template <typename T, typename E>
-///using expected = std::expected<T,E>;
+using namespace std::literals;
+
 template <typename T, typename E>
 using expected = tl::expected<T,E>;
 
-
 /**
+ * TODO: Seprate output functions
  * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)
  * TODO: Timing and scalabilty checks
  *       - naive, 10,000 files per directory = ~50files/s    100 files per directory = ~1000/s
@@ -64,12 +67,121 @@ namespace gd
 
     operator std::string() const noexcept 
     {
-      return  std::string() + _file + ":" + std::to_string(_line) + "  " + _msg;
+      return  ""s + _file + ":" + std::to_string(_line) + "  " + _msg;
     }
   };
 
+  template <typename T>
+  using Result = expected<T, gd::Error>;
 
- constexpr char const * defaultRef = "HEAD";
+  class TreeGuard {
+     git_tree* ptr_ = nullptr;
+  
+  public:
+    TreeGuard(git_tree* ptr): ptr_(ptr) {}
+    ~TreeGuard() { git_tree_free(ptr_); ptr_ = nullptr; }
+    operator git_tree*() const noexcept { return ptr_; }
+  };
+
+  class BuilderGuard {
+     git_treebuilder* ptr_ = nullptr;
+  
+  public:
+    BuilderGuard(git_treebuilder* ptr): ptr_(ptr) {}
+    ~BuilderGuard() { git_treebuilder_free(ptr_); ptr_ = nullptr; }
+    operator git_treebuilder*() const noexcept { return ptr_; }
+  };
+
+  struct context;
+  class Object {
+    git_oid oid_;
+    git_filemode_t mod_;
+    std::string name_;
+    
+    Object(std::string&& name) 
+    :name_(name) {}
+
+    static Object create(const std::filesystem::path& fullpath) {
+      return Object(fullpath.filename());
+    }
+
+    public:
+      git_oid const * oid() const noexcept { return &oid_; }
+      git_filemode_t mod() const noexcept { return mod_; }
+      const std::string&  name() const noexcept { return name_; }
+
+      /** 
+       * Creats a blob from content and return an Object representation 
+       */
+      static Result<Object> 
+      createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept; 
+
+      /** 
+       * Uses existing dir `git_oid` to create an Object representation
+       * TODO: requires `memcpy`, should be avoided if possible
+       * 
+       * Preconditions dirOid must describe a Tree(Directory)
+       */
+      static Result<Object> 
+      createDir(const std::filesystem::path& fullpath, BuilderGuard& bld) noexcept;
+  };
+
+  std::ostream& operator<<(std::ostream& os, Object const& ) noexcept;
+
+  struct LongerPathFirst {
+    bool operator()(const std::filesystem::path& a, const std::filesystem::path& b) const {
+      auto aLen = std::distance(a.begin(), a.end());
+      auto bLen = std::distance(b.begin(), b.end());
+      return aLen > bLen || a > b;
+    }
+  };
+
+  class TreeBuilder {
+    using Directory = std::filesystem::path;
+
+    using ObjectList = std::vector<Object>;
+    using DirectoryObjects = std::pair<Directory, ObjectList>;
+
+    std::map<Directory, ObjectList, LongerPathFirst> dirObjs_;
+
+    /// @brief Inserts a file at a directory.
+    /// @param fullpath  Directory owning the object. Example: from/root
+    /// @param obj and Object representing a directory or file
+    /// Collects for each `dir` the added `obj`ects 
+    /// A hash table is added for quick lookup
+    void insert(const std::filesystem::path& dir, const Object&& obj) noexcept;
+
+  // /// @brief Inserts missing parent directories, up to root
+  // /// This is required 
+  // void rootify(std::filesystem::path dir) noexcept; 
+
+    public:
+    Result<void> 
+    insertFile(gd::context& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
+
+    void del() noexcept {
+      /// TODO:
+    }
+
+    void mv() noexcept {
+      /// TODO:
+    }
+
+    Result<git_tree*> 
+    commit(gd::context& ctx) noexcept;
+
+    void clean() noexcept {
+      dirObjs_.clear();
+    }
+
+    bool empty() const noexcept {
+      return dirObjs_.empty();
+    }
+
+    void print(std::ostream&) noexcept;
+  };
+
+  constexpr char const * defaultRef = "HEAD";
 
  /**
   * A structure to convey the context for git chains calls.
@@ -77,7 +189,6 @@ namespace gd
   * While the rest are interal information for chain calls
   **/
 
-  struct context;
   namespace internal {
     struct Node {
 
@@ -92,6 +203,7 @@ namespace gd
       ~Node() {  reset();  }
 
       git_commit* commit_{nullptr};
+      /// TODO: Maybe not needed, replace by updates instead
       git_tree*   tree_{nullptr};
     };
   };
@@ -113,6 +225,7 @@ namespace gd
     git_repository* repo_;         /*  git repository             */
     std::string ref_;              /*  git reference (branch tip) */
     bool dirty_{false};            /*  Has non-comitted updates   */
+    TreeBuilder updates_;          /*  Collects updates           */
 
     internal::Node tip_;           /* Internal call chaining information */
   };
@@ -128,7 +241,7 @@ namespace gd
   namespace ni
   {
     expected<context, Error> selectBranch(context&& ctx, const std::string& name) noexcept;
-    expected<context, Error> add(context&& ctx, const std::string& fullpath, const std::string& content) noexcept;
+    expected<context, Error> add(context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
     expected<context, Error> del(context&& ctx, const std::string& fullpath) noexcept;
     expected<context, Error> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
     expected<context, Error> createBranch(context&& ctx, const git_oid& commitId, const std::string& name) noexcept;
@@ -161,7 +274,7 @@ namespace gd
   }
 
  /**
-  * Adds a file in the current context (repo, branch)
+  * Adds a file/revision in the current context (repo, branch)
   *
   * @param fullpath[std::string] : File name full path (relative to root)
   * @param content[std::string]  : File contents blob

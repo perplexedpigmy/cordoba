@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 /**
- * Class to add an iterative ability on the a path like string
+ * Class to add an iterative ability on a path like string
  * The path always contains a filename (right most entry)
  *
  * The class is constructed for the benefit of its dbg application usage.
@@ -16,7 +16,7 @@
  *
  * The implmenentation doesn't conform to the iterator std requirements beyound its
  * ability to support range loops, it also takes ownership of the 'fullpath' provided
- * and may update it. Once the string is handed to PathTraverse it should be used again.
+ * and may update it. Once the string is handed to PathTraverse it shouldn't be used again.
  *
  **/
 class PathTraverse
@@ -66,7 +66,7 @@ class PathTraverse
            * This allows to both avoid string creation as well as provide libgit2 directly its expected type (char*)
            *
            * The last term(directory) may or may not be prefixed with a slash. the algorithm is to
-           * search for slashes backward when not found. pos_ is set to 0, having two effectes
+           * search for slashes backward when not found. pos_ is set to 0, having two effects
            * - The operator* call will take the term starting at character 0
            * - Next call to this ++ function will set it to string::npos. effectively ending the iteration.
            *

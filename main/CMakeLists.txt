@@ -9,7 +9,7 @@ add_executable(${APP_NAME}
 
 set_target_properties(${APP_NAME}
     PROPERTIES
-      CXX_STANDARD 17
+      CXX_STANDARD 20
       CXX_EXTENSIONS OFF
       CXX_STANDARD_REQUIRED ON
 )

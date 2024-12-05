@@ -1,44 +1,60 @@
 #include <gd/gd.h>
 #include <pathTraverse.h>
+#include <ranges>
 
-#include <map>
 #include <mutex>
 #include <iostream>
 #include <shared_mutex>
-#include <filesystem>
+#include <algorithm>
+#ifdef DEBUG_OUTPUT
+# include <debug.h>
+#endif 
 
-/* std::ostream& operator<<(std::ostream& os, git_tree* tree) */ /* { */
-/*    char buf[10]; */
-/*    return os << "Tree(" << git_oid_tostr(buf, 9, git_tree_id(tree)) <<")" ; */
-/* } */
+using namespace std::ranges;
 
-std::ostream& operator<<(std::ostream& os, git_oid oid) noexcept
-{
-   constexpr size_t BufSize = 10;
+namespace gd {
+  std::ostream& operator<<(std::ostream& os, const Error& e) noexcept {
+    return os << (std::string)e;
+  }
+  
+  std::ostream& operator<<(std::ostream& os, Object const& obj) noexcept {
+    const static std::unordered_map<git_filemode_t, char const * const>  s = {
+      {GIT_FILEMODE_UNREADABLE,       "UNRE"},
+      {GIT_FILEMODE_TREE,             "TREE"},
+      {GIT_FILEMODE_BLOB,             "BLOB"},
+      {GIT_FILEMODE_BLOB_EXECUTABLE,  "EXEC"},
+      {GIT_FILEMODE_LINK,             "LINK"},
+      {GIT_FILEMODE_COMMIT,           "CMMT"}
+    };
 
-   std::array<char, BufSize> buf;
-   return os << "Object(" << git_oid_tostr(buf.data(), BufSize - 1, &oid) <<")" ;
+    os << obj.oid() << "  ";
+    if (auto i = s.find(obj.mod()); i == s.end()) {
+      os << "????";
+    } else {
+      os << i->second;
+    }
+    return os << "  " << obj.name();
+  }
 }
-
-std::ostream& operator<<(std::ostream& os, const gd::Error& e) noexcept 
-{
-  return  os << (std::string)e;
-}
-
-      /* static git_oid oid(char * const sha) */
-      /* { */
-      /*   git_oid ret; */
-      /*   check(git_oid_fromstr(&ret , sha)); */
-      /* return ret; */
-      /* } */
-      /* static std::string sha(git_oid const * oid) */
-      /* { */
-      /*   char buf[GIT_OID_HEXSZ+1]; */
-      /*   return git_oid_tostr(buf, GIT_OID_HEXSZ, oid); */
-      /* } */
 
 namespace {
+  /**
+   * Error handling functions
+   **/
+  std::string strigify_git_error() noexcept {
+    const git_error *err = git_error_last();
+    return std::string("[") + std::to_string(err->klass) + std::string("] ") + err->message;
+  }
+
+  #define unexpected(type, msg) tl::make_unexpected( gd::Error(__FILE__, __LINE__, type, msg) );
+  #define unexpected_err(err) tl::make_unexpected( err );
+  #define unexpected_git tl::make_unexpected( gd::Error(__FILE__, __LINE__, gd::ErrorType::GitError, strigify_git_error()) );
+
   static char const * const sNoRepositoryError{"No Repository selected"};
+
+  expected<git_tree*, gd::Error>
+  getTree(gd::context& ctx, const std::string& path) noexcept;
+
 
   template <typename T, typename F>
   void free_git_resource(T*& resource, F f)
@@ -49,19 +65,6 @@ namespace {
        resource = nullptr;
     }
   }
-
-  /**
-   * Error handling functions
-   **/
-
-  std::string strigify_git_error() noexcept {
-    const git_error *err = git_error_last();
-    return std::string("[") + std::to_string(err->klass) + std::string("] ") + err->message;
-  }
-
-  #define unexpected(type, msg) tl::make_unexpected( gd::Error(__FILE__, __LINE__, type, msg) );
-  #define unexpected_err(err) tl::make_unexpected( err );
-  #define unexpected_git tl::make_unexpected( gd::Error(__FILE__, __LINE__, gd::ErrorType::GitError, strigify_git_error()) );
 
   /**
    * Git accesssor abstraction
@@ -118,10 +121,12 @@ namespace {
 
       return {false, nullptr};
     }
+
     /**
-    * Retuns true if a repo cleanup occurs when the repo exists
-    * If repo doesn't exist returns false
-    * Regardless it will remove the directory `repoFullPath`
+     * Removes directory 'repoFullPath' if exists
+     * 
+    * Retuns true if repo existed
+    * Otherwise false
     */
     bool
     cleanRepo(const std::string& repoFullPath) noexcept
@@ -181,6 +186,7 @@ namespace {
     opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
     opts.flags |= GIT_REPOSITORY_INIT_BARE ;  /* Bare repository                */
     opts.description = name.data();           /* User given name                */
+    opts.initial_head = "main";               /* Main branch istead of master   */
 
     git_repository* repo;
     if(git_repository_init_ext(&repo, fullpath.data(), &opts) != 0)
@@ -274,6 +280,86 @@ namespace {
 }
 
 
+gd::Result<gd::Object> 
+gd::Object::createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept {
+  Object blob { create(fullpath) };
+  blob.mod_= GIT_FILEMODE_BLOB;
+  if (git_blob_create_from_buffer(&blob.oid_, ctx.repo_, content.data(), content.size()) != 0)
+    return unexpected_git;
+
+  return std::move(blob);
+}
+
+gd::Result<gd::Object> 
+gd::Object::createDir(const std::filesystem::path& fullpath, gd::BuilderGuard& bld) noexcept {
+  Object dir { create(fullpath) };
+  if(git_treebuilder_write(&dir.oid_, bld) != 0)
+    return unexpected_git;
+
+  dir.mod_= GIT_FILEMODE_TREE;
+
+  return std::move(dir);
+}
+
+void gd::TreeBuilder::insert(const std::filesystem::path& dir, const Object&& obj) noexcept {
+  if (auto itr = dirObjs_.find(dir); itr != dirObjs_.end()) {
+    itr->second.emplace_back(std::move(obj));
+  } else {
+    dirObjs_.emplace( dir, ObjectList(1, obj) );
+  }
+}
+
+
+gd::Result<void> 
+gd::TreeBuilder::insertFile(gd::context& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept {
+  auto blobResult = Object::createBlob(ctx, fullpath, content);
+  if (!blobResult) 
+    return unexpected_git;
+
+  insert( fullpath.parent_path().relative_path(), std::move(*blobResult) );
+  return Result<void>();
+}
+
+gd::Result<git_tree*> 
+gd::TreeBuilder::commit(gd::context& ctx) noexcept {
+  git_oid const * treeOid = nullptr;
+
+  for (const auto& [dir, objs]: dirObjs_) {
+    bool rootDir = dir.empty();
+    auto prevResult = rootDir ? Result<git_tree*>(ctx.tip_.tree_) : getTree(ctx, dir);
+    if (!prevResult)
+      return unexpected_git;
+      
+    auto prev = gd::TreeGuard(*prevResult);
+    git_treebuilder *bld = nullptr;
+    if (git_treebuilder_new(&bld, ctx.repo_, prev) != 0)
+      return unexpected_git;
+
+    auto bldGuard = BuilderGuard(bld);
+    for ( auto& obj : objs )  {
+      if(git_treebuilder_insert(nullptr, bldGuard, obj.name().data(), obj.oid(), obj.mod()) != 0)
+        return unexpected_git;
+    }
+
+    if (auto parentDir = Object::createDir(dir, bldGuard); !parentDir) {
+      return unexpected_err(parentDir.error()); 
+    } else {
+      treeOid = parentDir->oid();
+      if (!rootDir)
+        insert(dir.parent_path(), std::move(*parentDir));
+    }
+  }
+
+  if (treeOid == nullptr) 
+    return unexpected(gd::ErrorType::EmptyCommit, "No updates made");
+
+  git_tree* tree;
+  if(git_tree_lookup(&tree, ctx.repo_, treeOid) != 0)
+    return unexpected_git;
+
+  return tree;
+}
+
 /*******************************************************************************
  *                             internal::context
  * Context for chaining calls, namely repository and branch
@@ -289,7 +375,7 @@ void gd::context::setBranch(const std::string& fullPathRef) noexcept
   ref_ = fullPathRef;
 }
 
-
+// TODO: Consider if needed 
 expected<::gd::context, gd::Error>
 gd::context::updateCommitTree(const git_oid& newTreeOid) noexcept
 {
@@ -325,7 +411,6 @@ gd::internal::Node& gd::internal::Node::operator=(Node&& other) noexcept
   return *this;
 }
 
-
 void gd::internal::Node::reset() noexcept
 {
   free_git_resource(commit_, git_commit_free);
@@ -360,7 +445,7 @@ gd::internal::Node::init(gd::context&& ctx) noexcept
 
 /**
  * Removes the repo from the cache if it exists
- * cleans up it's git state and removes the directory
+ * cleans up its git state and removes the directory
  */
  bool 
  gd::cleanRepo(const std::string& repoFullPath) noexcept {
@@ -395,17 +480,24 @@ gd::ni::selectBranch(gd::context&& ctx, const std::string& name) noexcept
 
 
 expected<gd::context, gd::Error>
-gd::ni::add(gd::context&& ctx, const std::string& fullpath, const std::string& content) noexcept
+gd::ni::add(gd::context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept
 {
   if (not ctx.repo_) return unexpected(gd::ErrorType::MissingRepository, sNoRepositoryError);
 
+  auto res = ctx.updates_.insertFile(ctx, fullpath, content);
+  if (!res) 
+    return unexpected_git;
+
+  return std::move(ctx);
+  // TODO: how to connect context to ObjList
+/*
   git_oid elemOid;
   if (git_blob_create_from_buffer(&elemOid, ctx.repo_, content.data(), content.size()) != 0)
     return unexpected_git;
 
   auto mode = GIT_FILEMODE_BLOB;
 
-  PathTraverse paths(fullpath.data());
+  PathTraverse paths(fullpath.string().data());
   char const * name = paths.filename();
 
   for (auto [path, dir] : paths)
@@ -429,6 +521,7 @@ gd::ni::add(gd::context&& ctx, const std::string& fullpath, const std::string& c
     mode = GIT_FILEMODE_TREE;
 
     name = dir;
+    
   }
 
   git_treebuilder *bld = nullptr;
@@ -445,6 +538,7 @@ gd::ni::add(gd::context&& ctx, const std::string& fullpath, const std::string& c
 
   ctx.dirty_ = true;
   return ctx.updateCommitTree(elemOid);
+*/
 }
 
 
@@ -505,11 +599,14 @@ gd::ni::mv(gd::context&& ctx, const std::string& fullpath, const std::string& to
   return ctx.updateCommitTree(newTree);
 }
 
-
 expected<git_oid, gd::Error>
 gd::ni::commit(gd::context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept
 {
-  if (not ctx.dirty_) return unexpected(gd::ErrorType::EmptyCommit, "Nothing to commit");
+  if (ctx.updates_.empty()) return unexpected(gd::ErrorType::EmptyCommit, "Nothing to commit");
+
+  auto newRoot = ctx.updates_.commit(ctx);
+  if (!newRoot)
+    return unexpected_err(newRoot.error());
 
   git_signature *commiter = nullptr;
   if(git_signature_now(&commiter, author.data(), email.data()) != 0 )
@@ -526,11 +623,13 @@ gd::ni::commit(gd::context&& ctx, const std::string& author, const std::string& 
       commiter,        /* committer        */
       "UTF-8",         /* message encoding */
       message.data(),  /* message          */
-      ctx.tip_.tree_,  /* root tree        */
+      *newRoot,        /* root tree        */
       1,               /* parent count     */
       parents);        /* parents          */
 
   git_signature_free(commiter);
+
+  free_git_resource(*newRoot, git_tree_free);
 
   ctx.tip_.reset();
 

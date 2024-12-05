@@ -73,12 +73,20 @@ void sanityCheck()
 }
 
 // Output
-// Commiting :     1 Files for 13 domains ::   0.00869548s      115.002 files/s
-// Commiting :    10 Files for 13 domains ::    0.0909334s      109.971 files/s
-// Commiting :   100 Files for 13 domains ::      1.10934s      90.1436 files/s
-// Commiting :  1000 Files for 13 domains ::       37.939s      26.3581 files/s
-// Commiting : 10000 Files for 13 domains ::      3259.63s      3.06784 files/s
+//                                                       Naive(1)                     Whole Dir(2)
+//                                          -----------------------------   ---------------------------
+// Commiting :      1 Files for 13 domains :: 0.00869548s 115.002 files/s :: 0.00905408s 110.447 files/s
+// Commiting :     10 Files for 13 domains ::  0.0909334s 109.971 files/s ::   0.045195s 221.263 files/s
+// Commiting :    100 Files for 13 domains ::       1.11s  90.144 files/s ::   0.419095s 238.609 files/s
+// Commiting :  1,000 Files for 13 domains ::      37.94s  26.358 files/s ::    3.27252s 305.575 files/s
+// Commiting : 10,000 Files for 13 domains ::   3,259.63s   3.679 files/s ::      16.95s 589.969 files/s
 //
+// (1) Naively add one file at a time, updating the entire tree up to root
+// (2) Collect all elements, on commit, update each directory once
+//     Collection is a std::map Path -> Vector<Updates> 
+//     std::map collects effected directorys grown is O(logN)
+//     std::vector capacity is dynmaically growing, no hint provided, growth is linear O(N)
+//     Improvement can be moving to std::unordered_map (Constant time) + sorting O(logN)
 void speedTest()
 {
   cout << "\n\nWrite speed test" << endl;
@@ -94,7 +102,7 @@ void speedTest()
   const std::vector<std::string> domains{ "AB", "AS", "UT", "AC", "RT", "TZ", "AD", "AZ", "PT", "RS", "PT", "TV", "VZ"};
 
   auto dbx = selectRepository(repoPath);
-  for (size_t numFiles = 1; numFiles <= 1'000; numFiles *= 10)
+  for (size_t numFiles = 1; numFiles <= 10'000; numFiles *= 10)
   {
     auto start = chrono::steady_clock::now();
 
@@ -117,7 +125,7 @@ void speedTest()
          <<  setw(12) <<  durationS << "s   "
          <<  setw(10) << (numFiles / durationS) << " files/s" << endl;
 
-    dbx >> selectBranch("master"); // Reset the tip to HEAD
+    dbx >> selectBranch("main"); // Reset the tip to HEAD
   }
 }
 

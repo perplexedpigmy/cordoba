@@ -18,7 +18,6 @@ inline void assertError(char const * msg, const string& err)
   throw runtime_error(""s + msg + "\n   " +  err );
 }
 
-
 void sanityCheck()
 {
   cout << "Basic interface tests " << endl;
@@ -62,16 +61,17 @@ void sanityCheck()
       >> read("the/blank/slate")
       || [](const auto& err) { assertError("Reading file", err); };
 
+/* TODO: Del and Move are not yet supported 
     db >> selectBranch("KenAndRitchie")
       >> del("src/dev/include/hello.h")
       >> mv("src/dev/c/hello.c", "src/dev/cpp/hello.cpp")
       >> commit("mno", "mno@xmousse.com.org", "remove header file")
       || [](const auto& err) { assertError("Unable to remove or move files", err); };
+*/
 
     std::cout << "The blank Slate review: " << *content << std::endl;
   } catch(const runtime_error& e)  { cout << "Error:" << e.what() << endl; }
 }
-
 // Output
 //                                                       Naive(1)                     Whole Dir(2)
 //                                          -----------------------------   ---------------------------
@@ -101,6 +101,8 @@ void speedTest()
   //  Naieve implementation slows down exponantionally with growth of number of files !!!
   const std::vector<std::string> domains{ "AB", "AS", "UT", "AC", "RT", "TZ", "AD", "AZ", "PT", "RS", "PT", "TV", "VZ"};
 
+  /// TODO: Consolidate context propagation, and tip tracking
+  ////      Branch creation can be performed from tip_.commit_t
   auto dbx = selectRepository(repoPath);
   for (size_t numFiles = 1; numFiles <= 10'000; numFiles *= 10)
   {
@@ -131,7 +133,7 @@ void speedTest()
 
 int main() {
 
-  sanityCheck();
+  // sanityCheck();
   speedTest();
   return 0;
 }

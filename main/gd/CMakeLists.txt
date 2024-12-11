@@ -1,6 +1,7 @@
 CMAKE_MINIMUM_Required(VERSION 3.19 FATAL_ERROR)
 
 add_library(gd STATIC
+            src/guard.cpp
             src/gd.cpp)
 
 set_target_properties(gd

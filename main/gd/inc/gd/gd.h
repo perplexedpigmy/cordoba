@@ -2,12 +2,6 @@
 
 #include <git2.h>
 
-// #if __cpp_lib_expected >= 202211L 
-// #include <expected>
-// #elif
-#include <tl/expected.hpp>
-// #endif
-
 #include <string>
 #include <set>
 #include <memory>
@@ -15,37 +9,40 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <err.h>
+#include <expected.h>
 #include <guard.h>
 
-using namespace std::literals;
-
-template <typename T, typename E>
-using expected = tl::expected<T,E>;
+// template <typename T, typename E>
+// using expected = tl::expected<T,E>;
 
 /**
- * TODO: Seprate output functions
  * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)
+ * TODO: Seprate output functions
+ * TODO: Debug output support
+ * 
  * TODO: Timing and scalabilty checks
  *       - naive, 10,000 files per directory = ~50files/s    100 files per directory = ~1000/s
  *       - index,
- *       - local caching until commit.
+ *       - local caching until commit. 
  * TODO: Allow to chain createBranch-> addFile (where the file is added to the new Branch's context)
  * TODO: Convert Error from string -> (errString, errNo, origin)
  *
- * TODO: Support for sharding
+ * TODO: Support for sharding. 2 years later, what did I mean, what for?
  * TODO: Missing interface
  *         merge
  *         tag
  *
  * TODO: Implement rollback
- * TODO: More tests
  * TODO: lift & chain implementation
- * TODO: Display hash constructs
  * TODO: Tags support
  * TODO: Metadata support (notes)
+ * 
+ * TODO: Testing, testing and more testing 
  **/
 namespace gd
 {
+/*
   enum class ErrorType {
     MissingRepository,
     BadDir,
@@ -73,7 +70,8 @@ namespace gd
 
   template <typename T>
   using Result = expected<T, gd::Error>;
-
+*/
+/*
   class TreeGuard {
      git_tree* ptr_ = nullptr;
   
@@ -91,6 +89,7 @@ namespace gd
     ~BuilderGuard() { git_treebuilder_free(ptr_); ptr_ = nullptr; }
     operator git_treebuilder*() const noexcept { return ptr_; }
   };
+*/
 
   struct context;
   class Object {
@@ -116,14 +115,8 @@ namespace gd
       static Result<Object> 
       createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept; 
 
-      /** 
-       * Uses existing dir `git_oid` to create an Object representation
-       * TODO: requires `memcpy`, should be avoided if possible
-       * 
-       * Preconditions dirOid must describe a Tree(Directory)
-       */
       static Result<Object> 
-      createDir(const std::filesystem::path& fullpath, BuilderGuard& bld) noexcept;
+      createDir(const std::filesystem::path& fullpath, treebuilder_t& bld) noexcept;
   };
 
   std::ostream& operator<<(std::ostream& os, Object const& ) noexcept;
@@ -148,12 +141,7 @@ namespace gd
     /// @param fullpath  Directory owning the object. Example: from/root
     /// @param obj and Object representing a directory or file
     /// Collects for each `dir` the added `obj`ects 
-    /// A hash table is added for quick lookup
     void insert(const std::filesystem::path& dir, const Object&& obj) noexcept;
-
-  // /// @brief Inserts missing parent directories, up to root
-  // /// This is required 
-  // void rootify(std::filesystem::path dir) noexcept; 
 
     public:
     Result<void> 
@@ -167,7 +155,7 @@ namespace gd
       /// TODO:
     }
 
-    Result<git_tree*> 
+    Result<gd::tree_t> 
     commit(gd::context& ctx) noexcept;
 
     void clean() noexcept {
@@ -183,31 +171,37 @@ namespace gd
 
   constexpr char const * defaultRef = "HEAD";
 
- /**
-  * A structure to convey the context for git chains calls.
-  * Except for the initial commit at least a repo and a branch are needed,
-  * While the rest are interal information for chain calls
-  **/
-
   namespace internal {
+
+    /** 
+     * A abstraction node on the DAG
+     **/
     struct Node {
 
       Node() noexcept = default;
-
       Node(Node&& other) noexcept;
       Node& operator=(Node&& other) noexcept;
 
-      void reset() noexcept;
+      /**
+       * @brief Updates a context to latest of reference 
+       * @param ctx The old context, with valid repository/reference 
+       * @return The context with new node pointing at the tip of ref
+       **/ 
       static expected<::gd::context, Error> init(::gd::context&& ctx) noexcept;
 
-      ~Node() {  reset();  }
+      /// @brief The latest commit of the context 
+      commit_t commit_;
 
-      git_commit* commit_{nullptr};
-      /// TODO: Maybe not needed, replace by updates instead
-      git_tree*   tree_{nullptr};
+      /// @brief Root tree of context 
+      tree_t root_;
     };
   };
 
+  /**
+   * A context tracking struct, for call chaining 
+   * Updates are collected and dumped on commit, 
+   * This aggregates all directory updates into one git write.
+   **/
   struct context
   {
     context(git_repository* repo,
@@ -222,22 +216,13 @@ namespace gd
 
     expected<::gd::context, Error> updateCommitTree(const git_oid& treeOid) noexcept;
 
-    git_repository* repo_;         /*  git repository             */
-    std::string ref_;              /*  git reference (branch tip) */
-    bool dirty_{false};            /*  Has non-comitted updates   */
-    TreeBuilder updates_;          /*  Collects updates           */
+    git_repository* repo_;     /*  git repository             */
+    std::string ref_;          /*  git reference (branch tip) */
+    TreeBuilder updates_;      /*  Collects updates           */
 
-    internal::Node tip_;           /* Internal call chaining information */
+    internal::Node tip_;       /* Internal call chaining information */
   };
 
-
-  /**
-   *  Updating git repository(NI - Naieve implementation)
-   *  Naively updates all trees in the path for each file.
-   *  So the same logical tree may be updated multiple times.
-   *
-   *  TODO: Add required interface for complete implementation
-   **/
   namespace ni
   {
     expected<context, Error> selectBranch(context&& ctx, const std::string& name) noexcept;
@@ -245,6 +230,7 @@ namespace gd
     expected<context, Error> del(context&& ctx, const std::string& fullpath) noexcept;
     expected<context, Error> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
     expected<context, Error> createBranch(context&& ctx, const git_oid& commitId, const std::string& name) noexcept;
+    /** Replace git_oid to context */
     expected<git_oid, Error> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
     expected<context, Error> rollback(context&& ctx) noexcept;
 

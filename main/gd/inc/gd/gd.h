@@ -13,9 +13,6 @@
 #include <expected.h>
 #include <guard.h>
 
-// template <typename T, typename E>
-// using expected = tl::expected<T,E>;
-
 /**
  * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)
  * TODO: Seprate output functions
@@ -42,55 +39,6 @@
  **/
 namespace gd
 {
-/*
-  enum class ErrorType {
-    MissingRepository,
-    BadDir,
-    BadFile,
-    BadCommit,
-    EmptyCommit,
-    BlobError,
-    GitError,
-  };
-
-  struct Error {
-    Error(char const * const file, int line, ErrorType type, const std::string&& msg) noexcept
-    :_file(file), _line(line), _type(type), _msg(msg) {}
-
-    char const * _file;
-    int          _line;
-    ErrorType    _type;
-    std::string  _msg;
-
-    operator std::string() const noexcept 
-    {
-      return  ""s + _file + ":" + std::to_string(_line) + "  " + _msg;
-    }
-  };
-
-  template <typename T>
-  using Result = expected<T, gd::Error>;
-*/
-/*
-  class TreeGuard {
-     git_tree* ptr_ = nullptr;
-  
-  public:
-    TreeGuard(git_tree* ptr): ptr_(ptr) {}
-    ~TreeGuard() { git_tree_free(ptr_); ptr_ = nullptr; }
-    operator git_tree*() const noexcept { return ptr_; }
-  };
-
-  class BuilderGuard {
-     git_treebuilder* ptr_ = nullptr;
-  
-  public:
-    BuilderGuard(git_treebuilder* ptr): ptr_(ptr) {}
-    ~BuilderGuard() { git_treebuilder_free(ptr_); ptr_ = nullptr; }
-    operator git_treebuilder*() const noexcept { return ptr_; }
-  };
-*/
-
   struct context;
   class Object {
     git_oid oid_;
@@ -140,7 +88,7 @@ namespace gd
     /// @brief Inserts a file at a directory.
     /// @param fullpath  Directory owning the object. Example: from/root
     /// @param obj and Object representing a directory or file
-    /// Collects for each `dir` the added `obj`ects 
+    /// Collects objects per dir 
     void insert(const std::filesystem::path& dir, const Object&& obj) noexcept;
 
     public:
@@ -187,7 +135,14 @@ namespace gd
        * @param ctx The old context, with valid repository/reference 
        * @return The context with new node pointing at the tip of ref
        **/ 
-      static expected<::gd::context, Error> init(::gd::context&& ctx) noexcept;
+      static Result<gd::context> init(gd::context&& ctx) noexcept;
+
+      
+      /**
+       * @brief Updates the tip to given commit by commitId
+       * @param ctx The old context, with valid repository/reference 
+       **/ 
+      Result<void> update(gd::context&& ctx, git_oid* commitId) noexcept;
 
       /// @brief The latest commit of the context 
       commit_t commit_;
@@ -214,7 +169,7 @@ namespace gd
     void setRepo(git_repository* repo) noexcept;
     void setBranch(const std::string& fullPathRef) noexcept;
 
-    expected<::gd::context, Error> updateCommitTree(const git_oid& treeOid) noexcept;
+    Result<gd::context> updateCommitTree(const git_oid& treeOid) noexcept;
 
     git_repository* repo_;     /*  git repository             */
     std::string ref_;          /*  git reference (branch tip) */
@@ -225,16 +180,16 @@ namespace gd
 
   namespace ni
   {
-    expected<context, Error> selectBranch(context&& ctx, const std::string& name) noexcept;
-    expected<context, Error> add(context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
-    expected<context, Error> del(context&& ctx, const std::string& fullpath) noexcept;
-    expected<context, Error> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
-    expected<context, Error> createBranch(context&& ctx, const git_oid& commitId, const std::string& name) noexcept;
-    /** Replace git_oid to context */
-    expected<git_oid, Error> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
-    expected<context, Error> rollback(context&& ctx) noexcept;
+    Result<context> selectBranch(context&& ctx, const std::string& name) noexcept;
+    Result<context> add(context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
+    Result<context> del(context&& ctx, const std::string& fullpath) noexcept;
+    Result<context> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
+    Result<context> createBranch(context&& ctx, const git_oid* commitId, const std::string& name) noexcept;
+    Result<context> createBranch(context&& ctx, const std::string& name) noexcept;
+    Result<context> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
+    Result<context> rollback(context&& ctx) noexcept;
 
-    expected<std::string, Error> read(context&& ctx, const std::string& fullpath) noexcept;
+    Result<std::string> read(context&& ctx, const std::string& fullpath) noexcept;
   }
 
   bool cleanRepo(const std::string& repoFullPath) noexcept;
@@ -244,7 +199,7 @@ namespace gd
   *
   * @param repo[Repository] : The repository to work with
   **/
-  expected<context, Error>
+  Result<context>
   selectRepository(const std::string& fullpath, const std::string& name = "") noexcept;
 
  /**
@@ -254,7 +209,7 @@ namespace gd
   **/
   inline auto selectBranch(const std::string& name) noexcept
   {
-    return [&name](context&& ctx) -> expected<context, Error> {
+    return [&name](context&& ctx) -> Result<context> {
       return ni::selectBranch(std::move(ctx), name);
     };
   }
@@ -267,7 +222,7 @@ namespace gd
   **/
   inline auto add(const std::string& fullpath, const std::string& content) noexcept
   {
-    return [&fullpath, &content](context&& ctx) -> expected<context, Error> {
+    return [&fullpath, &content](context&& ctx) -> Result<context> {
       return ni::add(std::move(ctx), fullpath, content);
     };
   }
@@ -280,7 +235,7 @@ namespace gd
   **/
   inline auto del(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> expected<context, Error> {
+    return [&fullpath](context&& ctx) -> Result<context> {
       return ni::del(std::move(ctx), fullpath);
     };
   }
@@ -293,7 +248,7 @@ namespace gd
   **/
   inline auto mv(const std::string& fullpath, const std::string& toFullpath) noexcept
   {
-    return [&fullpath, &toFullpath](context&& ctx) -> expected<context, Error> {
+    return [&fullpath, &toFullpath](context&& ctx) -> Result<context> {
       return ni::mv(std::move(ctx), fullpath, toFullpath);
     };
   }
@@ -305,8 +260,8 @@ namespace gd
   **/
   inline auto add(const std::set<std::pair<std::string, std::string> >& filesAndContents) noexcept
   {;
-    return [&filesAndContents](context&& ctx) -> expected<context, Error> {
-      expected<context, Error>  foldingCtx(std::move(ctx));
+    return [&filesAndContents](context&& ctx) -> Result<context> {
+      Result<context>  foldingCtx(std::move(ctx));
 
       for (const auto& [fullpath, content] : filesAndContents)
       {
@@ -329,7 +284,7 @@ namespace gd
    **/
   inline auto commit(const std::string& author, const std::string& email, const std::string& message) noexcept
   {
-    return [&author, &email, &message](context&& ctx) -> expected<git_oid, Error>  {
+    return [&author, &email, &message](context&& ctx) -> Result<context>  {
        return ni::commit(std::move(ctx), author, email, message);
     };
   }
@@ -344,20 +299,32 @@ namespace gd
    **/
   inline auto rollback() noexcept
   {
-    return [](context&& ctx) -> expected<context, Error>  {
+    return [](context&& ctx) -> Result<context>  {
        return ni::rollback(std::move(ctx));
     };
   }
   /**
-   * Creates a branch in a given repository
+   * Creates a branch in a given repository, from a given commitId 
    *
    * @param commitId[git_oid] : The originating commit for the branch
    * @param name[std::string] : Branch name
    **/
-  inline auto createBranch(const git_oid& commitId, const std::string& name) noexcept
+  inline auto createBranch(const git_oid* commitId, const std::string& name) noexcept
   {
-     return [&commitId, &name](context&& ctx) -> expected<context, Error> {
+     return [&commitId, &name](context&& ctx) -> Result<context> {
        return ni::createBranch(std::move(ctx), commitId, name);
+     };
+  }
+
+  /**
+   * Creates a new branch in a given repository, from the context's tip 
+   *
+   * @param name[std::string] : Branch name
+   **/
+  inline auto createBranch(const std::string& name) noexcept
+  {
+     return [&name](context&& ctx) -> Result<context> {
+       return ni::createBranch(std::move(ctx), name);
      };
   }
 
@@ -367,7 +334,7 @@ namespace gd
    **/
   inline auto read(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> expected<std::string, Error> {
+    return [&fullpath](context&& ctx) -> Result<std::string> {
       return ni::read(std::move(ctx), fullpath);
     };
   }
@@ -375,28 +342,27 @@ namespace gd
   namespace shorthand {
 
     template <typename L, typename F>
-    auto operator >>(expected<L, Error>&& lhs, F&& f)
+    auto operator >>(Result<L>&& lhs, F&& f)
     {
       return std::move(lhs).and_then(std::forward<F>(f));
     }
 
     template <typename L, typename F>
-    auto operator ||(expected<L, Error>&& lhs, F&& f)
+    auto operator ||(Result<L>&& lhs, F&& f)
     {
       return std::move(lhs).or_else(std::forward<F>(f));
     }
 
     /**
-     *  ThreadChainingContext enables disjoint gd commands using the last context.
+     *  ThreadChainingContext enables disjoint gd commands using the last context of the reference.
      *
      *  Example:
      *
-     *  // While chaining keeps the same context
-     *  selectRepository(...) >> selectBranch(...) >> addFile(...) ... >> commit(...)
+     *  While chaining keeps the same context
+     *    selectRepository(...) >> selectBranch(...) >> addFile(...) ... >> commit(...) >> read(..)
      *
-     * // A more common use constitues disjointed calles to the library in different parts of the code
-     * // db keeps the context for such cases.
-     * selectRepository(...);
+     * An alernative use can use the `db` that always points at the latest of the local threads repo/ref
+     * selectRepository(...);   // Sets `db` thread context 
      * db >> selectBranch(...);
      * db >> addFile(...);
      * db >> rollback();
@@ -405,14 +371,52 @@ namespace gd
     class ThreadChainingContext {};
     static ThreadChainingContext db;
 
-    expected<context, Error> getThreadContext() noexcept;
+    Result<context> getThreadContext() noexcept;
 
+    /**
+     * Support for call chaining, 
+     *   >>  on successful execution (and_then)
+     *   ||  on failure (or_else)
+     *   i.e. 
+     *      selectRepository(...) >> addFile(...) >> commit(...) || logError(...)
+     *   
+     *   it's also possible to keep it in varible and chain over multiple lines 
+     *    auto ctx = selectRepository(...);
+     *    ctx >> addFile(..);
+     *    ctx || logError();
+     * 
+     * Disjoints calls can use the `db` construct that keeps a context per thread, providing context creation via `selectResository`
+     *
+     *    1.  auto db = selectRepository(...)
+     *    2.  db >> addFile(...)
+     *    3.  db >> commit(...)
+     *
+     * Design decision
+     *  Chaining a RValue propagates the return value
+     *  i.e.  
+     *    selectRepository(...) >> addFile(...) ...
+     *  
+     *  While in the case of aLValue `ctx`
+     *     auto ctx = selectRepository
+     *   
+     *  it is updated
+     *     ctx >> addFile(...)
+     * 
+     *  This can only happen when the Return type `L` is the same as the LValue.
+     **/
+
+    /**
+     * RValue chaining for operator >> (and_then)
+     */
     template <typename F>
     auto operator >>(ThreadChainingContext, F&& f)
     {
       return std::move(getThreadContext()).and_then(std::forward<F>(f));
     }
 
+    /**
+     * RValue chaining for operator || (or_else)
+     */
     template <typename F>
     auto operator ||(ThreadChainingContext, F&& f)
     {
@@ -420,26 +424,10 @@ namespace gd
     }
 
     /**
-     * there is upport for call chaining i.e.
-     *   selectRepository(...) >> addFile(...) >> commit(...)
-     *
-     * As well as via kept context i.e.
-     *
-     *  1.  auto db = selectRepository(...)
-     *  2.  db >> addFile(...)
-     *  3.  db >> commit(...)
-     *
-     * The ealier is serviced by the above operator >> and || where the context is moved from one call to another.
-     * But allowing the kept context means that we are handling an lvalue.
-     *
-     * This operator handles the lvalue when its provided predicate F is ** the same ** Payload 'L'
-     * as the return value, in that case the lvalue lhs can be updated directly, so it can be farther used,
-     * as depicted in lines 2 and 3 above.
-     *
-     * Note that db >> commit(...) does not return a context and thus farther chaining is not possible.
-     **/
+     * LValue handling for >> (and_then) when the LValue type == L
+     */
     template <typename L, typename F>
-    auto operator >>(expected<L, Error>& lhs, F&& f) ->
+    auto operator >>(Result<L>& lhs, F&& f) ->
     std::enable_if_t<
       std::is_same<
         L,
@@ -453,30 +441,10 @@ namespace gd
     }
 
     /**
-     * there is upport for call chaining i.e.
-     *   selectRepository(...) >> addFile(...) >> commit(...)
-     *
-     * As well as via kept context i.e.
-     *
-     *  1.  auto db = selectRepository(...)
-     *  2.  db >> addFile(...)
-     *  3.  auto commitId = db >> commit(...)
-     *  4.  auto content = db >> readFile(...)
-     *
-     * The ealier is serviced by the above operator >> and || where the context is moved from one call to another.
-     * But allowing the kept context means that we are handling an lvalue.
-     *
-     * This operator handles the lvalue when its provided predicate F is ** different ** than Payload 'L'
-     * In this case we can not update lhs, but we have to return a new expected
-     *
-     * TODO: the following sentence is an ideal but can't yet be implemented.
-     *        L's lhs will have to be updated, but it's already moved (and lost) in f
-     *        Example, In line 3 the db's context was moved and the commit updated it,
-     *                 but currently there is no way to update db to refelct the changed context.
-     * Note that it's possible to continue using the db as shown on line 4.
-     **/
+     * LValue handling for >> (and_then) when the LValue type != L
+     */
     template <typename L, typename F>
-    auto operator >>(expected<L, Error>& lhs, F&& f) ->
+    auto operator >>(Result<L>& lhs, F&& f) ->
     std::enable_if_t<
       !std::is_same<
         L,
@@ -486,6 +454,39 @@ namespace gd
     >
     {
       return std::move(lhs).and_then(std::forward<F>(f));
+    }
+
+    /**
+     * LValue handling for || (or_else) when the LValue type == L
+     */
+    template <typename L, typename F>
+    auto operator ||(Result<L>& lhs, F&& f) ->
+    std::enable_if_t<
+      std::is_same<
+        L,
+        typename std::decay_t<decltype(std::move(lhs).or_else(std::forward<F>(f)))>::value_type
+      >::value,
+      decltype(std::move(lhs).or_else(std::forward<F>(f)))&
+    >
+    {
+      lhs = std::move(lhs).or_else(std::forward<F>(f));
+      return lhs;
+    }
+
+    /**
+     * LValue handling for || (or_else) when the LValue type != L
+     */
+    template <typename L, typename F>
+    auto operator ||(Result<L>& lhs, F&& f) ->
+    std::enable_if_t<
+      !std::is_same<
+        L,
+        typename std::decay_t<decltype(std::move(lhs).or_else(std::forward<F>(f)))>::value_type
+      >::value,
+      decltype(std::move(lhs).or_else(std::forward<F>(f)))
+    >
+    {
+      return std::move(lhs).or_else(std::forward<F>(f));
     }
 
   }

@@ -14,13 +14,7 @@ template <typename T, typename E>
 using expected = tl::expected<T,E>;
 
 template <typename T>
-using expected2 = tl::expected<T, gd::Error>;
-
-namespace gd {
-
-  template <typename T>
-  using Result = expected<T, gd::Error>;
-}
+using Result = expected<T, gd::Error>;
 
 namespace {
   std::string strigify_git_error() noexcept {

@@ -91,20 +91,21 @@ namespace gd {
   using blob_t        = Guard<git_blob, git_blob_free>;
   using treebuilder_t = Guard<git_treebuilder, git_treebuilder_free>;
   using signature_t   = Guard<git_signature, git_signature_free>;
+  using reference_t   = Guard<git_reference, git_reference_free>;
 }
 
 /// @brief Finds a Blob(File) by its full path 
 /// @param root The root tree(directory)
 /// @param path full path to file
 /// @return On successful retrieval a RAII git_blob pointer, otherwise an Error
-tl::expected<gd::blob_t, gd::Error>
+Result<gd::blob_t>
 getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) noexcept;
 
 /// @brief Finds a Tree(Directory) by a git_oid
 /// @param repo a pointer to an open git repository
 /// @param treeOid the git_oid of the tree
 /// @return On successful retrieval a RAII git_tree pointer, otherwise an Error
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTree(git_repository* repo, const git_oid* treeOid) noexcept;
 
 /// @brief Retrieves a Tree(Directory) by path
@@ -112,40 +113,57 @@ getTree(git_repository* repo, const git_oid* treeOid) noexcept;
 /// @param root The root tree of a context (tied to a chosen commit)
 /// @param path The full path to the Tree(Directory)
 /// @return On success a RAII git_tree pointer, otherwise an Error
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTreeRelativeToRoot(git_repository* repo, git_tree* root, const std::filesystem::path& path) noexcept;
 
 /// @brief Retieves a Tree from a Commit
 /// @param repo a pointer to an open git repository
 /// @param commit The git_commit representing the location on the DAG
 /// @return On success a corresponding RAII git_commit, otherwise an Error
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTreeOfCommit(git_repository* repo, git_commit* commit) noexcept;
 
 /// @brief Retieves an object by a given revision string 
 /// @param repo A pointer to an open git repository
 /// @param spec A revision string. \link https://git-scm.com/docs/git-rev-parse.html#_specifying_revisions See more \endlink
 /// @return On success a corresponding RAII git_object, otherwise an Error
-tl::expected<gd::object_t, gd::Error>
+Result<gd::object_t>
 getObjectBySpec(git_repository* repo, const std::string& spec) noexcept;
 
 /// @brief Retrieves a commit by a given revision string
 /// @param repo A pointer to an open git repository
 /// @param ref A revision string. \link https://git-scm.com/docs/git-rev-parse.html#_specifying_revisions See more \endlink
 /// @return On success a corresponding RAII git_commit, otherwise an Error
-tl::expected<gd::commit_t, gd::Error>
+Result<gd::commit_t>
 getCommitByRef(git_repository* repo, const std::string& ref ) noexcept;
+
+/// @brief Retrieves a commit by a given revision string
+/// @param repo A pointer to an open git repository
+/// @param commitId The commit's git_oid. Retrieved on `git_commit_create` 
+/// @return On success a corresponding RAII git_commit, otherwise an Error
+Result<gd::commit_t>
+getCommitById(git_repository* repo, const git_oid* commitId) noexcept;
 
 /// @brief Creates a TreeBuilder(Directory builder), to create a single directory
 /// @param repo A pointer to an open git repository
 /// @param tree A git_tree, as the base of the tree, if `nullptr` new tree is empty
 /// @return On success returns a new RAII git_treebuilder, otherwise an Error
-tl::expected<gd::treebuilder_t, gd::Error>
+Result<gd::treebuilder_t>
 getTreeBuilder(git_repository* repo, const git_tree* tree) noexcept;
 
 /// @brief Creates a new signature to be used in a commit
 /// @param author The author's name 
 /// @param email The authoer's email
 /// @return On success the new RAII git_signature, otherwise an Error
-tl::expected<gd::signature_t, gd::Error>
+Result<gd::signature_t>
 getSignature(const std::string& author, const std::string& email) noexcept;
+
+/// @brief Creates a new branch and returns a reference to it
+/// @param repo A pointer to an open git repository
+/// @param name The new branche's name
+/// @param commit The commit on the DAG from which to start the new branch
+/// @return On success new RAII git_reference, otherwise an Error
+/// 
+/// Call for Branch creation doesn't chagne the context's branch
+Result<gd::reference_t>
+createBranch(git_repository* repo, const std::string& name, const git_commit* commit) noexcept; 

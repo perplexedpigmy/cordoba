@@ -1,6 +1,6 @@
 #include <guard.h>
 
-tl::expected<gd::blob_t, gd::Error>
+Result<gd::blob_t>
 getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) noexcept {
   git_object *object;
   int result = git_object_lookup_bypath(&object, reinterpret_cast<const git_object*>(root), path.c_str(), GIT_OBJECT_BLOB);
@@ -14,7 +14,7 @@ getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) 
   return unexpected(gd::ErrorType::BadFile, path.string() + " is not a file(blob)");
 }
 
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTree(git_repository* repo, const git_oid* treeOid) noexcept {
   git_tree* tree;
   if(git_tree_lookup(&tree, repo, treeOid) != 0)
@@ -23,7 +23,7 @@ getTree(git_repository* repo, const git_oid* treeOid) noexcept {
   return tree;
 }
 
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTreeRelativeToRoot(git_repository* repo, git_tree* root, const std::filesystem::path& path) noexcept {
     git_tree_entry *entry;
     int result = root ? git_tree_entry_bypath(&entry, root, path.c_str()) : GIT_ENOTFOUND;
@@ -46,7 +46,7 @@ getTreeRelativeToRoot(git_repository* repo, git_tree* root, const std::filesyste
     return unexpected(gd::ErrorType::BadDir, path.string() + " is not a direcotry");
 }
 
-tl::expected<gd::tree_t, gd::Error>
+Result<gd::tree_t>
 getTreeOfCommit(git_repository* repo, git_commit* commit) noexcept {
   git_tree* tree;
   if(git_commit_tree(&tree, commit) != 0)
@@ -55,7 +55,7 @@ getTreeOfCommit(git_repository* repo, git_commit* commit) noexcept {
   return tree;
 }
 
-tl::expected<gd::object_t, gd::Error>
+Result<gd::object_t>
 getObjectBySpec(git_repository* repo, const std::string& spec) noexcept {
   git_object* obj = nullptr;
   if(git_revparse_single(&obj, repo, spec.c_str()) != 0)
@@ -64,7 +64,7 @@ getObjectBySpec(git_repository* repo, const std::string& spec) noexcept {
   return obj;
 }
 
-tl::expected<gd::commit_t, gd::Error>
+Result<gd::commit_t>
 getCommitByRef(git_repository* repo, const std::string& ref ) noexcept {
   auto commitObj = getObjectBySpec(repo, ref);
   if (!commitObj)
@@ -78,7 +78,18 @@ getCommitByRef(git_repository* repo, const std::string& ref ) noexcept {
   return commitObj->castMove<git_commit, git_commit_free>();
 }
 
-tl::expected<gd::treebuilder_t, gd::Error>
+
+Result<gd::commit_t>
+getCommitById(git_repository* repo, const git_oid* commitId) noexcept {
+  git_commit *commit{ nullptr };
+  int result = git_commit_lookup(&commit, repo, commitId);
+  if (result != 0)
+    return unexpected_git;
+
+  return commit;
+}
+
+Result<gd::treebuilder_t>
 getTreeBuilder(git_repository* repo, const git_tree* tree) noexcept {
     git_treebuilder *bld = nullptr;
     if (git_treebuilder_new(&bld, repo, tree) != 0)
@@ -88,11 +99,21 @@ getTreeBuilder(git_repository* repo, const git_tree* tree) noexcept {
 }
 
 
-tl::expected<gd::signature_t, gd::Error>
+Result<gd::signature_t>
 getSignature(const std::string& author, const std::string& email) noexcept {
   git_signature *commiter = nullptr;
   if(git_signature_now(&commiter, author.data(), email.data()) != 0 )
     return unexpected_git;
 
   return commiter;
+}
+
+Result<gd::reference_t>
+createBranch(git_repository* repo, const std::string& name, const git_commit* commit) noexcept {
+  git_reference* branchRef{ nullptr };
+  int result = git_branch_create(&branchRef, repo, name.c_str(), commit, 0 /* do not force */);
+  if (result != 0)
+    return unexpected_git;
+
+  return branchRef; 
 }

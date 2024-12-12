@@ -10,7 +10,7 @@
 #include "generator.h"
 
 using namespace gd;
-using namespace gd::shorthand; // Support chaining via >> and ||
+using namespace gd::shorthand; // add >>, || chaining 
 using namespace std;
 
 inline void assertError(char const * msg, const string& err)
@@ -25,31 +25,31 @@ void sanityCheck()
   std::filesystem::remove_all(repoPath);
 
   try {
-    auto commitId = selectRepository(repoPath)
+    auto ctx = selectRepository(repoPath)
       >> add("README", "bla bla\n")
       >> commit("mno", "mno@xmousse.com.org", "...\n")
       || [](const auto& err) { assertError("Failed to create first commit", err); };
 
-    auto res = db
-      >> createBranch(*commitId, "KenAndRitchie")
-      >> createBranch(*commitId, "StevenPinker")
-      >> createBranch(*commitId, "AIReboot")
+    ctx 
+      >> createBranch("KenAndRitchie")
+      >> createBranch("StevenPinker")
+      >> createBranch("AIReboot")
       || [](const auto& err) { assertError("Create branches", err); };
 
-    commitId = db   // Implicitly master branch (last context)
+    ctx    // Implicitly master branch (last context)
       >> add("src/content/new.txt", "contentssssss")
       >> add("src/content/sub/more.txt", "check check")
       >> commit("mno", "mno@xmousse.com.org", "comment is long")
       ||  [](const auto& err) { assertError("Updating master", err); };
 
-    commitId = db
-      >> selectBranch("KenAndRitchie")
+   ctx 
+>> selectBranch("KenAndRitchie")
       >> add("src/dev/c/hello.c", "#include <hello.h>")
       >> add("src/dev/include/hello.h", "#pragma once\n")
       >> commit("mno", "mno@xmousse.com.org", "Ken and Ritchie's inventory")
       || [](const auto& err) { assertError("Updating branch Ken&Ritichie", err); };
 
-    commitId  = db
+   ctx 
       >> selectBranch("StevenPinker")
       >> add("the/blank/slate", "If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review")
       >> add("the/staff/of/thought", "Powerful and gripping")
@@ -57,10 +57,9 @@ void sanityCheck()
       >> commit("mno", "mno@xmousse.com.org", "comment is long")
       || [](const auto& err) { assertError("Updating branch StevenPinker", err); };
 
-    auto content = db // Implicitly use previous used branch 'two'
+    ctx // Implicitly use previous used branch 'two'
       >> read("the/blank/slate")
       || [](const auto& err) { assertError("Reading file", err); };
-
 /* TODO: Del and Move are not yet supported 
     db >> selectBranch("KenAndRitchie")
       >> del("src/dev/include/hello.h")
@@ -69,11 +68,11 @@ void sanityCheck()
       || [](const auto& err) { assertError("Unable to remove or move files", err); };
 */
 
-    std::cout << "The blank Slate review: " << *content << std::endl;
+  //   std::cout << "The blank Slate review: " << *content << std::endl;
   } catch(const runtime_error& e)  { cout << "Error:" << e.what() << endl; }
 }
 // Output
-//                                                       Naive(1)                     Whole Dir(2)
+//                                             Naive(1) - Per file write      Collect - per dir write
 //                                          -----------------------------   ---------------------------
 // Commiting :      1 Files for 13 domains :: 0.00869548s 115.002 files/s :: 0.00905408s 110.447 files/s
 // Commiting :     10 Files for 13 domains ::  0.0909334s 109.971 files/s ::   0.045195s 221.263 files/s

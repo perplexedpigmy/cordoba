@@ -52,20 +52,6 @@ namespace gd {
 
 namespace {
   static char const * const sNoRepositoryError{"No Repository selected"};
-/*
-  expected<git_tree*, gd::Error>
-  getTree(gd::context& ctx, const std::string& path) noexcept;
-
-  template <typename T, typename F>
-  void free_git_resource(T*& resource, F f)
-  {
-    if(resource)
-    {
-       f(resource);
-       resource = nullptr;
-    }
-  }*/
-
 
   /**
    * Git accesssor abstraction
@@ -145,7 +131,7 @@ namespace {
       return removed;
     }
 
-    expected<gd::context, gd::Error> threadContext() const noexcept
+    Result<gd::context> threadContext() const noexcept
     {
       if (not ctx_.repo_) 
         return unexpected(gd::ErrorType::MissingRepository, sNoRepositoryError);
@@ -182,7 +168,7 @@ namespace {
    *
    * A context is the pair of <repository, branch>
    **/
-  expected<gd::context, gd::Error>
+  Result<gd::context>
   createRepo(const std::string& fullpath, const std::string& name) noexcept
   {
     git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
@@ -209,7 +195,7 @@ namespace {
     return git_repository_open_ext(nullptr, repoPath.data(), GIT_REPOSITORY_OPEN_NO_SEARCH, nullptr) == 0;
   }
 
-  expected<gd::context, gd::Error>
+  Result<gd::context>
   connectToRepo(const std::string& fullpath)
   {
     git_repository* repo;
@@ -220,72 +206,10 @@ namespace {
     return gd::context{repo, sHead};;
   }
 
-
-  /**
-  * Retrieves a tree relative to a root tree.
-  * null is returned if the tree does not exists. Any other error is reported
-  *
-  * @param repo[Repository]  : The repository
-  * @param path[std::string] : The relative path
-  * @param root[git_tree]    : Pointer to a root git_tree
-  *
-  * Returned git_tree* must be freed by the caller
-  **/
- /*
-  expected<git_tree*, gd::Error>
-  getTree(gd::context& ctx, const std::string& path) noexcept
-  {
-    if (ctx.tip_.tree_ == nullptr)
-      return nullptr;
-
-    git_tree_entry *entry;
-    int result = git_tree_entry_bypath(&entry, ctx.tip_.tree_, path.data());
-
-    if (result == GIT_ENOTFOUND)
-      return nullptr;
-
-    if (result !=  GIT_OK )
-      return unexpected_git;
-
-    git_tree *tree = nullptr ;
-    if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
-      result = git_tree_lookup(&tree, ctx.repo_, git_tree_entry_id(entry));
-      git_tree_entry_free(entry);
-      if (result < 0)
-        return unexpected_git;
-
-      return tree;
-    }
-    return unexpected(gd::ErrorType::BadDir, path + " is not a direcotry");
-  }
-*/
-  /**
-  * Retrieves a blob relative to a root tree.
-  * null is returned if the tree does not exists. Any other error is reported
-  *
-  * @param repo[Repository]  : The repository
-  * @param path[std::string] : The relative path
-  * @param root[git_tree]    : Pointer to a root git_tree
-  *
-  * Returned git_object* must be freed by the caller
-  **/
-  // expected<git_blob*, gd::Error>
-  // getBlob(gd::context& ctx,  const std::string& path, git_tree const * root) noexcept
-  // {
-  //   git_object *object;
-  //   int result = git_object_lookup_bypath(&object, reinterpret_cast<const git_object*>(root), path.data(), GIT_OBJECT_BLOB);
-  //   if (result != 0)
-  //     return unexpected_git;
-
-  //   if (git_object_type(object) == GIT_OBJECT_BLOB)
-  //     return reinterpret_cast<git_blob*>(object);
-
-  //   return unexpected(gd::ErrorType::BadFile, path + " is not a file");
-  // }
 }
 
 
-gd::Result<gd::Object> 
+Result<gd::Object> 
 gd::Object::createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept {
   Object blob { create(fullpath) };
   blob.mod_= GIT_FILEMODE_BLOB;
@@ -295,7 +219,7 @@ gd::Object::createBlob(gd::context& ctx,const std::filesystem::path& fullpath, c
   return std::move(blob);
 }
 
-gd::Result<gd::Object> 
+Result<gd::Object> 
 gd::Object::createDir(const std::filesystem::path& fullpath, treebuilder_t& bld) noexcept {
   Object dir { create(fullpath) };
   if(git_treebuilder_write(&dir.oid_, bld) != 0)
@@ -315,7 +239,7 @@ void gd::TreeBuilder::insert(const std::filesystem::path& dir, const Object&& ob
 }
 
 
-gd::Result<void> 
+Result<void> 
 gd::TreeBuilder::insertFile(gd::context& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept {
   auto blobResult = Object::createBlob(ctx, fullpath, content);
   if (!blobResult) 
@@ -325,7 +249,7 @@ gd::TreeBuilder::insertFile(gd::context& ctx, const std::filesystem::path& fullp
   return Result<void>();
 }
 
-gd::Result<gd::tree_t> 
+Result<gd::tree_t> 
 gd::TreeBuilder::commit(gd::context& ctx) noexcept {
   git_oid const * treeOid = nullptr;
 
@@ -377,21 +301,6 @@ void gd::context::setBranch(const std::string& fullPathRef) noexcept
   ref_ = fullPathRef;
 }
 
-// TODO: Consider if needed 
-/*
-expected<::gd::context, gd::Error>
-gd::context::updateCommitTree(const git_oid& newTreeOid) noexcept
-{
-  if (auto tree = getTree(repo_, &newTreeOid); !tree) {
-    return unexpected_err(tree.error());
-  } else {
-    tip_.tree_ = std::move(*tree);
-  }
-
-  return std::move(*this);
-}
-*/
-
 /*******************************************************************************
  *                             internal::Node
  * A Node is specific location on the DAG and a reference to the root tree
@@ -410,7 +319,7 @@ gd::internal::Node& gd::internal::Node::operator=(Node&& other) noexcept
   return *this;
 }
 
-expected<::gd::context, gd::Error>
+Result<gd::context>
 gd::internal::Node::init(gd::context&& ctx) noexcept
 {
   if (auto commit = getCommitByRef(ctx.repo_, ctx.ref_); !commit) {
@@ -424,9 +333,26 @@ gd::internal::Node::init(gd::context&& ctx) noexcept
   } else {
     ctx.tip_.root_ = std::move(*tree);
   }
-
   return std::move(ctx);
 }
+
+Result<void>
+gd::internal::Node::update(gd::context&& ctx, git_oid* commitId) noexcept {
+
+  auto commit = getCommitById(ctx.repo_, commitId);
+  if (!commit) 
+    return unexpected_err(commit.error());
+
+  auto tree = getTreeOfCommit(ctx.repo_, *commit);
+  if (!tree)
+    return unexpected_err(tree.error());
+    
+  commit_ = std::move(*commit);
+  root_ = std::move(*tree);
+
+  return Result<void>();
+}
+
 
 /*******************************************************************************
  *                            Interface implementation
@@ -441,7 +367,7 @@ gd::internal::Node::init(gd::context&& ctx) noexcept
    return sGit.cleanRepo(repoFullPath);
  }
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::selectRepository(const std::string& fullpath, const std::string& name) noexcept
 {
   if (auto [exists, pRepo] =  sGit.getRepo(fullpath); exists)
@@ -454,7 +380,7 @@ gd::selectRepository(const std::string& fullpath, const std::string& name) noexc
 }
 
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::ni::selectBranch(gd::context&& ctx, const std::string& name) noexcept
 {
   if (not ctx.repo_) return unexpected(gd::ErrorType::MissingRepository, sNoRepositoryError);
@@ -468,7 +394,7 @@ gd::ni::selectBranch(gd::context&& ctx, const std::string& name) noexcept
 }
 
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::ni::add(gd::context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept
 {
   if (not ctx.repo_)
@@ -482,7 +408,7 @@ gd::ni::add(gd::context&& ctx, const std::filesystem::path& fullpath, const std:
 }
 
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::ni::del(gd::context&& ctx, const std::string& fullpath) noexcept
 {
   // TODO!!!!!
@@ -513,7 +439,7 @@ gd::ni::del(gd::context&& ctx, const std::string& fullpath) noexcept
 }
 
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::ni::mv(gd::context&& ctx, const std::string& fullpath, const std::string& toFullPath) noexcept
 {
   // TODO!!!!!
@@ -549,12 +475,10 @@ gd::ni::mv(gd::context&& ctx, const std::string& fullpath, const std::string& to
   return std::move(ctx);
 }
 
-/// @brief  
-/// @param ctx 
-/// @param author 
-/// @param email 
+/// @brief Commits collected updats  
+/// @param ctx  
 /// @param message 
-/// @return 
+/// @return  On success propagates the context, otherwise an Error
 /// TODO: Commit is now the end of the chain 
 //// It doesn't propagate a context and thus it doesn't update the tip
 //// The `commitId [:git_oid] is used to create branches
@@ -566,7 +490,7 @@ gd::ni::mv(gd::context&& ctx, const std::string& fullpath, const std::string& to
 //// TODO: Update commit to continue chaining
 ////       Including createBranch
 
-expected<git_oid, gd::Error>
+Result<gd::context>
 gd::ni::commit(gd::context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept
 {
   /// TODO: Commit is the only location where contention can happen when multiple threads
@@ -584,9 +508,9 @@ gd::ni::commit(gd::context&& ctx, const std::string& author, const std::string& 
 
   git_commit const *parents[1]{  ctx.tip_.commit_ };
 
-  git_oid commit_id;
+  git_oid commitId;
   int result = git_commit_create(
-      &commit_id,
+      &commitId,
       ctx.repo_,
       ctx.ref_.data(), /* name of ref      */
       *commiter,       /* author           */
@@ -600,39 +524,48 @@ gd::ni::commit(gd::context&& ctx, const std::string& author, const std::string& 
   if (result != 0)
     return unexpected_git;
 
-  // TODO: For continued chaining tip needs to be updated 
-  
-  return commit_id;
+  if (auto res = ctx.tip_.update(ctx.repo_, &commitId); !res) 
+    return unexpected_err(res.error());
+
+  return std::move(ctx);
 }
 
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::ni::rollback(gd::context&& ctx) noexcept
 {
   ctx.updates_.clean();
   return std::move(ctx);
 }
 
-expected<gd::context, gd::Error>
-gd::ni::createBranch(gd::context&& ctx, const git_oid& commitId, const std::string& name) noexcept
+/**
+ * Creates a new branch from any commitId
+ */
+Result<gd::context>
+gd::ni::createBranch(gd::context&& ctx, const git_oid* commitId, const std::string& name) noexcept
 {
-  git_commit *commit{ nullptr };
-  int result = git_commit_lookup(&commit, ctx.repo_, &commitId);
-  if (result != 0)
-    return unexpected_git;
+  auto commit = getCommitById(ctx.repo_, commitId );
+  if (*commit)
+    return unexpected_err(commit.error());
 
-  git_reference* branchRef{ nullptr };
-  result = git_branch_create(&branchRef, ctx.repo_, name.data(), commit, 0 /* no force */);
-  if (result != 0)
-    return unexpected_git;
-
-  git_reference_free(branchRef);
-  git_commit_free(commit);
+  auto branchRef = createBranch(ctx.repo_, name, ctx.tip_.commit_);
+  if (!branchRef)
+    return unexpected_err(branchRef.error());
 
   return std::move(ctx);
 }
 
-expected<std::string, gd::Error>
+Result<gd::context>
+gd::ni::createBranch(gd::context&& ctx, const std::string& name) noexcept
+{
+  auto branchRef = createBranch(ctx.repo_, name, ctx.tip_.commit_);
+  if (!branchRef)
+    return unexpected_err(branchRef.error());
+
+  return std::move(ctx);
+}
+
+Result<std::string>
 gd::ni::read(gd::context&& ctx, const std::string& fullpath) noexcept
 {
   auto blob = getBlobFromTreeByPath(ctx.tip_.root_, fullpath);
@@ -653,7 +586,7 @@ gd::ni::read(gd::context&& ctx, const std::string& fullpath) noexcept
   return  content;
 }
 
-expected<gd::context, gd::Error>
+Result<gd::context>
 gd::shorthand::getThreadContext() noexcept
 {
   return sGit.threadContext();

@@ -1,4 +1,6 @@
+#include <git2.h>
 #include <guard.h>
+#include <string.h>
 
 Result<gd::blob_t>
 getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) noexcept {
@@ -9,7 +11,7 @@ getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) 
 
   if (git_object_type(object) == GIT_OBJECT_BLOB) 
     return reinterpret_cast<git_blob*>(object);
-    // return make_guard(git_blob_free, reinterpret_cast<git_blob*>(object));
+    /// TODO: What is this ->> return make_guard(git_blob_free, reinterpret_cast<git_blob*>(object));
 
   return unexpected(gd::ErrorType::BadFile, path.string() + " is not a file(blob)");
 }
@@ -58,8 +60,12 @@ getTreeOfCommit(git_repository* repo, git_commit* commit) noexcept {
 Result<gd::object_t>
 getObjectBySpec(git_repository* repo, const std::string& spec) noexcept {
   git_object* obj = nullptr;
-  if(git_revparse_single(&obj, repo, spec.c_str()) != 0)
-    return unexpected_git;
+  if(auto res = git_revparse_single(&obj, repo, spec.c_str()); res != 0)
+    if (auto msg = git_error_last()->message; strcmp("revspec 'HEAD' not found", msg) == 0) {
+      return unexpected(gd::ErrorType::InitialContext, "'"s + spec + "' Object retrieve failed: git error '" + msg + "'")
+    } else  {
+      return unexpected_git;
+    }
 
   return obj;
 }
@@ -116,4 +122,38 @@ createBranch(git_repository* repo, const std::string& name, const git_commit* co
     return unexpected_git;
 
   return branchRef; 
+}
+
+Result<gd::repository_t>
+openRepository(const std::filesystem::path& fullpath) noexcept {
+  git_repository* repo;
+  if (git_repository_open_ext(&repo, fullpath.c_str(), GIT_REPOSITORY_OPEN_NO_SEARCH, nullptr) != 0)
+    return unexpected_git;
+
+  return repo;
+}
+
+Result<gd::repository_t>
+createRepository(const std::string& fullpath, const std::string& name) noexcept {
+  git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+
+  opts.flags |= GIT_REPOSITORY_INIT_MKPATH; /* mkdir as needed to create repo */
+  opts.flags |= GIT_REPOSITORY_INIT_BARE;   /* Bare repository                */
+  opts.description = name.c_str();          /* User given name                */
+  opts.initial_head = "main";               /* Main branch instead of master  */
+
+  git_repository *repo;
+  if (git_repository_init_ext(&repo, fullpath.c_str(), &opts) != 0)
+    return unexpected_git;
+
+  return repo;
+}
+
+Result<gd::entry_t>
+getTreeEntry(const git_tree* root, const std::string& fullpath) {
+  git_tree_entry* entry;
+  if (git_tree_entry_bypath(&entry, root, fullpath.c_str()) != 0 )
+    return unexpected_git;
+
+  return entry;
 }

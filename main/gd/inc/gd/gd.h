@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <git2.h>
 
 #include <string>
@@ -14,15 +15,25 @@
 #include <guard.h>
 
 /**
- * TODO: Consider  RAII.  tradeoffs (flexibility vs explicit cleanup)
  * TODO: Seprate output functions
  * TODO: Debug output support
+ * TODO: Add basic functionality 
+ *       move
+ *       del
+ * 
+ * TODO: Threadlocal context is broken
+ *       First the updates are not shared between local variable and local thread context 
+ *       Re-think the semantics of local thread context, 
+ *        is it interchangable 
+ *        when should it be destructed? Additional API with callers responsiblity.
+ * TODO: Review considerations:
+ *    Currently reading non-commited added files or updates is not possible (Any use case for that)
+ *    Updating the same file more than once (Including creation + update) is undefined behavior (Should it be supported?)
  * 
  * TODO: Timing and scalabilty checks
  *       - naive, 10,000 files per directory = ~50files/s    100 files per directory = ~1000/s
  *       - index,
  *       - local caching until commit. 
- * TODO: Allow to chain createBranch-> addFile (where the file is added to the new Branch's context)
  * TODO: Convert Error from string -> (errString, errNo, origin)
  *
  * TODO: Support for sharding. 2 years later, what did I mean, what for?
@@ -36,20 +47,38 @@
  * TODO: Metadata support (notes)
  * 
  * TODO: Testing, testing and more testing 
+ * TODO: Split Node, into Node && NodeWithTip or something to that effect
  **/
 namespace gd
 {
+
   struct context;
-  class Object {
+
+  class ObjectUpdate {
+    using Action = Result<void>(ObjectUpdate::*)(git_treebuilder*) const noexcept;
+
     git_oid oid_;
     git_filemode_t mod_;
     std::string name_;
-    
-    Object(std::string&& name) 
-    :name_(name) {}
+    Action action_;
 
-    static Object create(const std::filesystem::path& fullpath) {
-      return Object(fullpath.filename());
+    Result<void> insert(git_treebuilder *bld) const noexcept {
+      if(git_treebuilder_insert(nullptr, bld, name_.c_str(), &oid_, mod_) != 0)
+        return unexpected_git;
+      return Result<void>();
+    }
+
+    Result<void> remove(git_treebuilder *bld) const noexcept {
+      if(git_treebuilder_remove(bld, name_.c_str()))
+        return unexpected_git;
+      return Result<void>();
+    }
+    
+    ObjectUpdate(std::string&& name, git_filemode_t mod, Action action) 
+    :name_(name), mod_(mod), action_(action) {}
+
+    static ObjectUpdate create(const std::filesystem::path& fullpath, git_filemode_t mod, Action action) {
+      return ObjectUpdate(fullpath.filename(), mod, action);
     }
 
     public:
@@ -60,14 +89,23 @@ namespace gd
       /** 
        * Creats a blob from content and return an Object representation 
        */
-      static Result<Object> 
+      static Result<ObjectUpdate> 
       createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept; 
 
-      static Result<Object> 
-      createDir(const std::filesystem::path& fullpath, treebuilder_t& bld) noexcept;
+      static Result<gd::ObjectUpdate> 
+      fromEntry(gd::context& ctx,const std::filesystem::path& fullpath, const git_tree_entry* entry) noexcept;
+
+      static Result<ObjectUpdate> 
+      createDir(const std::filesystem::path& fullpath, treebuilder_t& ) noexcept;
+
+      static Result<ObjectUpdate> 
+      remove(const std::filesystem::path& fullpath) noexcept;
+
+      Result<void>
+      gitIt(git_treebuilder*) const noexcept;
   };
 
-  std::ostream& operator<<(std::ostream& os, Object const& ) noexcept;
+  std::ostream& operator<<(std::ostream& os, ObjectUpdate const& ) noexcept;
 
   struct LongerPathFirst {
     bool operator()(const std::filesystem::path& a, const std::filesystem::path& b) const {
@@ -80,7 +118,7 @@ namespace gd
   class TreeBuilder {
     using Directory = std::filesystem::path;
 
-    using ObjectList = std::vector<Object>;
+    using ObjectList = std::vector<ObjectUpdate>;
     using DirectoryObjects = std::pair<Directory, ObjectList>;
 
     std::map<Directory, ObjectList, LongerPathFirst> dirObjs_;
@@ -89,11 +127,17 @@ namespace gd
     /// @param fullpath  Directory owning the object. Example: from/root
     /// @param obj and Object representing a directory or file
     /// Collects objects per dir 
-    void insert(const std::filesystem::path& dir, const Object&& obj) noexcept;
+    void insert(const std::filesystem::path& dir, const ObjectUpdate&& obj) noexcept;
 
     public:
     Result<void> 
     insertFile(gd::context& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
+
+    Result<void> 
+    insertEntry(gd::context& ctx, const std::filesystem::path& fullpath, const git_tree_entry* entry) noexcept;
+
+    Result<void>
+    removeFile(gd::context& ctx, const std::filesystem::path& fullpath) noexcept;
 
     void del() noexcept {
       /// TODO:
@@ -104,7 +148,7 @@ namespace gd
     }
 
     Result<gd::tree_t> 
-    commit(gd::context& ctx) noexcept;
+    apply(gd::context& ctx) noexcept;
 
     void clean() noexcept {
       dirObjs_.clear();
@@ -159,30 +203,30 @@ namespace gd
    **/
   struct context
   {
-    context(git_repository* repo,
+    context(repository_t* repo,
             const std::string& branch = defaultRef ) noexcept
     : repo_(repo), ref_(branch) {}
 
     context(context&& other ) noexcept  = default;
     context& operator=(context&& other) noexcept  = default;
 
-    void setRepo(git_repository* repo) noexcept;
+    void setRepo(gd::repository_t* repo) noexcept;
     void setBranch(const std::string& fullPathRef) noexcept;
 
     Result<gd::context> updateCommitTree(const git_oid& treeOid) noexcept;
 
-    git_repository* repo_;     /*  git repository             */
-    std::string ref_;          /*  git reference (branch tip) */
-    TreeBuilder updates_;      /*  Collects updates           */
+    repository_t* repo_;     /*  git repository             */
+    std::string   ref_;      /*  git reference (branch tip) */
+    TreeBuilder   updates_;  /*  Collects updates           */
 
-    internal::Node tip_;       /* Internal call chaining information */
+    internal::Node tip_;   /* Internal call chaining information */
   };
 
   namespace ni
   {
     Result<context> selectBranch(context&& ctx, const std::string& name) noexcept;
     Result<context> add(context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
-    Result<context> del(context&& ctx, const std::string& fullpath) noexcept;
+    Result<context> rm(context&& ctx, const std::string& fullpath) noexcept;
     Result<context> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
     Result<context> createBranch(context&& ctx, const git_oid* commitId, const std::string& name) noexcept;
     Result<context> createBranch(context&& ctx, const std::string& name) noexcept;
@@ -192,7 +236,7 @@ namespace gd
     Result<std::string> read(context&& ctx, const std::string& fullpath) noexcept;
   }
 
-  bool cleanRepo(const std::string& repoFullPath) noexcept;
+  bool cleanRepo(const std::filesystem::path& repoFullPath) noexcept;
 
  /**
   * selecting a repository for chained calls
@@ -200,7 +244,7 @@ namespace gd
   * @param repo[Repository] : The repository to work with
   **/
   Result<context>
-  selectRepository(const std::string& fullpath, const std::string& name = "") noexcept;
+  selectRepository(const std::filesystem::path& fullpath, const std::string& name = "") noexcept;
 
  /**
   * selecting a branch for chained calles
@@ -236,7 +280,7 @@ namespace gd
   inline auto del(const std::string& fullpath) noexcept
   {
     return [&fullpath](context&& ctx) -> Result<context> {
-      return ni::del(std::move(ctx), fullpath);
+      return ni::rm(std::move(ctx), fullpath);
     };
   }
 

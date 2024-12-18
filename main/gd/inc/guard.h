@@ -85,6 +85,7 @@ namespace gd {
   };
 
   /** RAII safe git types */
+  using repository_t  = Guard<git_repository, git_repository_free>;
   using commit_t      = Guard<git_commit, git_commit_free>;
   using tree_t        = Guard<git_tree, git_tree_free>;
   using object_t      = Guard<git_object, git_object_free>;
@@ -92,6 +93,7 @@ namespace gd {
   using treebuilder_t = Guard<git_treebuilder, git_treebuilder_free>;
   using signature_t   = Guard<git_signature, git_signature_free>;
   using reference_t   = Guard<git_reference, git_reference_free>;
+  using entry_t       = Guard<git_tree_entry, git_tree_entry_free>;
 }
 
 /// @brief Finds a Blob(File) by its full path 
@@ -167,3 +169,23 @@ getSignature(const std::string& author, const std::string& email) noexcept;
 /// Call for Branch creation doesn't chagne the context's branch
 Result<gd::reference_t>
 createBranch(git_repository* repo, const std::string& name, const git_commit* commit) noexcept; 
+
+/// @brief Opens an exisiting repository
+/// @param fullpath full path to the repository 
+/// @return on success a new RIAA git_repository, otherwise an error
+Result<gd::repository_t>
+openRepository(const std::filesystem::path& fullpath) noexcept;
+
+/// @brief Creates a new repository
+/// @param fullpath full path to the new repository
+/// @param name creator's name
+/// @return On success a new RIAA git_repository, otherwise an error
+Result<gd::repository_t>
+createRepository(const std::string& fullpath, const std::string& name) noexcept;
+
+/// @brief Find the entry on a provided `root`
+/// @param root The root tree to search 
+/// @param fullpath Full path of the entry's location on the tree
+/// @return On success returns the tree_entry for an element in the tree (dir or blob), Otherwise an Error 
+Result<gd::entry_t>
+getTreeEntry(const git_tree* root, const std::string& fullpath);

@@ -11,6 +11,7 @@ namespace gd {
     EmptyCommit,
     BlobError,
     GitError,
+    InitialContext,
   };
 
   struct Error {

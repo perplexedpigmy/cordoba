@@ -60,25 +60,25 @@ void sanityCheck()
     ctx // Implicitly use previous used branch 'two'
       >> read("the/blank/slate")
       || [](const auto& err) { assertError("Reading file", err); };
-/* TODO: Del and Move are not yet supported 
-    db >> selectBranch("KenAndRitchie")
+
+    ctx >> selectBranch("KenAndRitchie")
       >> del("src/dev/include/hello.h")
       >> mv("src/dev/c/hello.c", "src/dev/cpp/hello.cpp")
       >> commit("mno", "mno@xmousse.com.org", "remove header file")
       || [](const auto& err) { assertError("Unable to remove or move files", err); };
-*/
 
   //   std::cout << "The blank Slate review: " << *content << std::endl;
   } catch(const runtime_error& e)  { cout << "Error:" << e.what() << endl; }
+  std::cout << "The end" << std::endl;
 }
 // Output
-//                                             Naive(1) - Per file write      Collect - per dir write
+//                                           Naive(1) - Per file write      Collect - per dir write
 //                                          -----------------------------   ---------------------------
-// Commiting :      1 Files for 13 domains :: 0.00869548s 115.002 files/s :: 0.00905408s 110.447 files/s
-// Commiting :     10 Files for 13 domains ::  0.0909334s 109.971 files/s ::   0.045195s 221.263 files/s
-// Commiting :    100 Files for 13 domains ::       1.11s  90.144 files/s ::   0.419095s 238.609 files/s
-// Commiting :  1,000 Files for 13 domains ::      37.94s  26.358 files/s ::    3.27252s 305.575 files/s
-// Commiting : 10,000 Files for 13 domains ::   3,259.63s   3.679 files/s ::      16.95s 589.969 files/s
+// Commiting :      1 Files / 13 domains :: 0.00869548s 115.002 files/s :: 0.00905408s 110.447 files/s
+// Commiting :     10 Files / 13 domains ::  0.0909334s 109.971 files/s ::   0.045195s 221.263 files/s
+// Commiting :    100 Files / 13 domains ::       1.11s  90.144 files/s ::   0.419095s 238.609 files/s
+// Commiting :  1,000 Files / 13 domains ::      37.94s  26.358 files/s ::    3.27252s 305.575 files/s
+// Commiting : 10,000 Files / 13 domains ::   3,259.63s   3.679 files/s ::      16.95s 589.969 files/s
 //
 // (1) Naively add one file at a time, updating the entire tree up to root
 // (2) Collect all elements, on commit, update each directory once
@@ -132,7 +132,7 @@ void speedTest()
 
 int main() {
 
-  // sanityCheck();
+  sanityCheck();
   speedTest();
   return 0;
 }

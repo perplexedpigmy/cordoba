@@ -1,10 +1,11 @@
 #pragma once 
 #include <tl/expected.hpp>
-#include <expected.h>
 #include <git2.h>
 #include <err.h>
 #include <filesystem>
 #include <iostream> // TODO: remove
+#include <expected.h>
+
 
 namespace gd {
   /**

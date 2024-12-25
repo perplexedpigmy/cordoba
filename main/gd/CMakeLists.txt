@@ -1,16 +1,16 @@
 CMAKE_MINIMUM_Required(VERSION 3.19 FATAL_ERROR)
 
 add_library(gd STATIC
-            src/guard.cpp
-            src/gd.cpp)
+  src/guard.cpp
+  src/gd.cpp)
 
 set_target_properties(gd
-    PROPERTIES
-      CXX_STANDARD 20 
-      CXX_EXTENSIONS OFF
-      CXX_STANDARD_REQUIRED ON
-      SOVERSION 0.1
-      DEBUG_POSTFIX _d
+  PROPERTIES
+    CXX_STANDARD 20 
+    CXX_EXTENSIONS OFF
+    CXX_STANDARD_REQUIRED ON
+    SOVERSION 0.1
+    DEBUG_POSTFIX _d
 )
 
 # ############################################################
@@ -45,7 +45,7 @@ include(../../cmake/CPM.cmake)
 CPMAddPackage("gh:libgit2/libgit2#v1.3.0")
 CPMAddPackage("gh:TartanLlama/expected#v1.0.0")
 CPMAddPackage("gh:catchorg/Catch2@2.13.7")
-
+CPMAddPackage("gh:gabime/spdlog@1.15.0")
 
 # Avoid warnings in libgit2 build
 include(CheckCCompilerFlag)
@@ -69,12 +69,13 @@ target_include_directories(gd PUBLIC ${libgit2_SOURCE_DIR}/include)
 
 target_link_libraries(gd PRIVATE git2)
 target_link_libraries(gd PUBLIC expected)
+target_link_libraries(gd PUBLIC spdlog)
 
 # export(TARGETS gd FILE MyLibraryConfig.cmake)
 
 add_executable(gdtest
-                 test/testPathTraverser.cpp
-                 test/testgd.cpp)
+  test/testPathTraverser.cpp
+  test/testgd.cpp)
 
 target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set_target_properties(gdtest

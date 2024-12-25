@@ -1,6 +1,4 @@
 #pragma once
-
-
 #include <git2.h>
 
 #include <string>
@@ -8,20 +6,15 @@
 #include <memory>
 #include <ostream>
 #include <filesystem>
-#include <iostream>
 #include <map>
 #include <err.h>
 #include <expected.h>
 #include <guard.h>
+#include <collector.h>
+#include <spdlog/spdlog.h>
 
 /**
- * TODO: Seprate output functions
- * TODO: Debug output support
- * TODO: Add basic functionality 
- *       move
- *       del
- * 
- * TODO: Threadlocal context is broken
+ * TODO: Review functionality of Thread local context
  *       First the updates are not shared between local variable and local thread context 
  *       Re-think the semantics of local thread context, 
  *        is it interchangable 
@@ -41,125 +34,20 @@
  *         merge
  *         tag
  *
- * TODO: Implement rollback
  * TODO: lift & chain implementation
  * TODO: Tags support
  * TODO: Metadata support (notes)
  * 
  * TODO: Testing, testing and more testing 
- * TODO: Split Node, into Node && NodeWithTip or something to that effect
+ *       test rollback
+ *       test multithreading
+ * TODO: Split Node, into Node && NodeWithTip or something to that effect. Why??
+ *       
+ *       
  **/
 namespace gd
 {
-
-  struct context;
-
-  class ObjectUpdate {
-    using Action = Result<void>(ObjectUpdate::*)(git_treebuilder*) const noexcept;
-
-    git_oid oid_;
-    git_filemode_t mod_;
-    std::string name_;
-    Action action_;
-
-    Result<void> insert(git_treebuilder *bld) const noexcept {
-      if(git_treebuilder_insert(nullptr, bld, name_.c_str(), &oid_, mod_) != 0)
-        return unexpected_git;
-      return Result<void>();
-    }
-
-    Result<void> remove(git_treebuilder *bld) const noexcept {
-      if(git_treebuilder_remove(bld, name_.c_str()))
-        return unexpected_git;
-      return Result<void>();
-    }
-    
-    ObjectUpdate(std::string&& name, git_filemode_t mod, Action action) 
-    :name_(name), mod_(mod), action_(action) {}
-
-    static ObjectUpdate create(const std::filesystem::path& fullpath, git_filemode_t mod, Action action) {
-      return ObjectUpdate(fullpath.filename(), mod, action);
-    }
-
-    public:
-      git_oid const * oid() const noexcept { return &oid_; }
-      git_filemode_t mod() const noexcept { return mod_; }
-      const std::string&  name() const noexcept { return name_; }
-
-      /** 
-       * Creats a blob from content and return an Object representation 
-       */
-      static Result<ObjectUpdate> 
-      createBlob(gd::context& ctx,const std::filesystem::path& fullpath, const std::string& content) noexcept; 
-
-      static Result<gd::ObjectUpdate> 
-      fromEntry(gd::context& ctx,const std::filesystem::path& fullpath, const git_tree_entry* entry) noexcept;
-
-      static Result<ObjectUpdate> 
-      createDir(const std::filesystem::path& fullpath, treebuilder_t& ) noexcept;
-
-      static Result<ObjectUpdate> 
-      remove(const std::filesystem::path& fullpath) noexcept;
-
-      Result<void>
-      gitIt(git_treebuilder*) const noexcept;
-  };
-
-  std::ostream& operator<<(std::ostream& os, ObjectUpdate const& ) noexcept;
-
-  struct LongerPathFirst {
-    bool operator()(const std::filesystem::path& a, const std::filesystem::path& b) const {
-      auto aLen = std::distance(a.begin(), a.end());
-      auto bLen = std::distance(b.begin(), b.end());
-      return aLen > bLen || a > b;
-    }
-  };
-
-  class TreeBuilder {
-    using Directory = std::filesystem::path;
-
-    using ObjectList = std::vector<ObjectUpdate>;
-    using DirectoryObjects = std::pair<Directory, ObjectList>;
-
-    std::map<Directory, ObjectList, LongerPathFirst> dirObjs_;
-
-    /// @brief Inserts a file at a directory.
-    /// @param fullpath  Directory owning the object. Example: from/root
-    /// @param obj and Object representing a directory or file
-    /// Collects objects per dir 
-    void insert(const std::filesystem::path& dir, const ObjectUpdate&& obj) noexcept;
-
-    public:
-    Result<void> 
-    insertFile(gd::context& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
-
-    Result<void> 
-    insertEntry(gd::context& ctx, const std::filesystem::path& fullpath, const git_tree_entry* entry) noexcept;
-
-    Result<void>
-    removeFile(gd::context& ctx, const std::filesystem::path& fullpath) noexcept;
-
-    void del() noexcept {
-      /// TODO:
-    }
-
-    void mv() noexcept {
-      /// TODO:
-    }
-
-    Result<gd::tree_t> 
-    apply(gd::context& ctx) noexcept;
-
-    void clean() noexcept {
-      dirObjs_.clear();
-    }
-
-    bool empty() const noexcept {
-      return dirObjs_.empty();
-    }
-
-    void print(std::ostream&) noexcept;
-  };
+  struct Context;
 
   constexpr char const * defaultRef = "HEAD";
 
@@ -179,14 +67,14 @@ namespace gd
        * @param ctx The old context, with valid repository/reference 
        * @return The context with new node pointing at the tip of ref
        **/ 
-      static Result<gd::context> init(gd::context&& ctx) noexcept;
+      static Result<gd::Context> init(gd::Context&& ctx) noexcept;
 
       
       /**
        * @brief Updates the tip to given commit by commitId
        * @param ctx The old context, with valid repository/reference 
        **/ 
-      Result<void> update(gd::context&& ctx, git_oid* commitId) noexcept;
+      Result<void> update(gd::Context&& ctx, git_oid* commitId) noexcept;
 
       /// @brief The latest commit of the context 
       commit_t commit_;
@@ -201,111 +89,109 @@ namespace gd
    * Updates are collected and dumped on commit, 
    * This aggregates all directory updates into one git write.
    **/
-  struct context
+  struct Context
   {
-    context(repository_t* repo,
+    Context(repository_t* repo,
             const std::string& branch = defaultRef ) noexcept
     : repo_(repo), ref_(branch) {}
 
-    context(context&& other ) noexcept  = default;
-    context& operator=(context&& other) noexcept  = default;
+    Context(Context&& other ) noexcept  = default;
+    Context& operator=(Context&& other) noexcept  = default;
 
     void setRepo(gd::repository_t* repo) noexcept;
     void setBranch(const std::string& fullPathRef) noexcept;
 
-    Result<gd::context> updateCommitTree(const git_oid& treeOid) noexcept;
+    Result<gd::Context> updateCommitTree(const git_oid& treeOid) noexcept;
 
     repository_t* repo_;     /*  git repository             */
     std::string   ref_;      /*  git reference (branch tip) */
-    TreeBuilder   updates_;  /*  Collects updates           */
+    TreeCollector updates_;  /*  Collects updates           */
 
     internal::Node tip_;   /* Internal call chaining information */
   };
 
   namespace ni
   {
-    Result<context> selectBranch(context&& ctx, const std::string& name) noexcept;
-    Result<context> add(context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
-    Result<context> rm(context&& ctx, const std::string& fullpath) noexcept;
-    Result<context> mv(context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
-    Result<context> createBranch(context&& ctx, const git_oid* commitId, const std::string& name) noexcept;
-    Result<context> createBranch(context&& ctx, const std::string& name) noexcept;
-    Result<context> commit(context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
-    Result<context> rollback(context&& ctx) noexcept;
+    Result<Context> selectBranch(Context&& ctx, const std::string& name) noexcept;
+    Result<Context> add(Context&& ctx, const std::filesystem::path& fullpath, const std::string& content) noexcept;
+    Result<Context> rm(Context&& ctx, const std::string& fullpath) noexcept;
+    Result<Context> mv(Context&& ctx, const std::string& fullpath, const std::string& toFullpath) noexcept;
+    Result<Context> createBranch(Context&& ctx, const git_oid* commitId, const std::string& name) noexcept;
+    Result<Context> createBranch(Context&& ctx, const std::string& name) noexcept;
+    Result<Context> commit(Context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
+    Result<Context> rollback(Context&& ctx) noexcept;
 
-    Result<std::string> read(context&& ctx, const std::string& fullpath) noexcept;
+    Result<std::string> read(Context&& ctx, const std::string& fullpath) noexcept;
   }
 
-  bool cleanRepo(const std::filesystem::path& repoFullPath) noexcept;
+  /// @brief Sets a user spdLog::Logger to accomodate for application needs
+  /// @param newLogger The new spdlog::Logger
+  /// @return the old logger
+  std::shared_ptr<spdlog::logger>
+  setLogger(std::shared_ptr<spdlog::logger> newLogger) noexcept;
 
- /**
-  * selecting a repository for chained calls
-  *
-  * @param repo[Repository] : The repository to work with
-  **/
-  Result<context>
+  /// @brief Removes a repository
+  /// @param repoFullPath full path to repository 
+  /// @return return true if a filesystem repo was removed
+  bool 
+  cleanRepo(const std::filesystem::path& repoFullPath) noexcept;
+
+  /// @brief Opens or creates a repository, and getting a context to work with
+  /// @param fullpath Fullpath to the repository
+  /// @param name creator's name, in case of creation the repository's creator will be 'name'. [Optional]
+  /// @return On success, a context to work with repository, otherwise an Error
+  Result<Context>
   selectRepository(const std::filesystem::path& fullpath, const std::string& name = "") noexcept;
 
- /**
-  * selecting a branch for chained calles
-  *
-  * @param name[std::string] : The branch's name
-  **/
+  /// @brief selects a differen branch
+  /// @param name the name of the branch to move to
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto selectBranch(const std::string& name) noexcept
   {
-    return [&name](context&& ctx) -> Result<context> {
+    return [&name](Context&& ctx) -> Result<Context> {
       return ni::selectBranch(std::move(ctx), name);
     };
   }
 
- /**
-  * Adds a file/revision in the current context (repo, branch)
-  *
-  * @param fullpath[std::string] : File name full path (relative to root)
-  * @param content[std::string]  : File contents blob
-  **/
+  /// @brief adds a file(blob in git speak) with its content in a  given 'fullpath'
+  /// @param fullpath the fullpath including the file name
+  /// @param content the files content 
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto add(const std::string& fullpath, const std::string& content) noexcept
   {
-    return [&fullpath, &content](context&& ctx) -> Result<context> {
+    return [&fullpath, &content](Context&& ctx) -> Result<Context> {
       return ni::add(std::move(ctx), fullpath, content);
     };
   }
 
- /**
-  * Removes a file in the current context (repo, branch)
-  * Only regular files(BLOB) can be removed.
-  *
-  * @param fullpath[std::string] : File name full path (relative to root)
-  **/
+  /// @brief Removes a file or a direcotry by fullpath
+  /// @param fullpath The full path of the file to remove
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto del(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> Result<context> {
+    return [&fullpath](Context&& ctx) -> Result<Context> {
       return ni::rm(std::move(ctx), fullpath);
     };
   }
 
- /**
-  * Move/Rename a file in the current context (repo, branch)
-  * Only regular files(Blobs) are supported
-  *
-  * @param fullpath[std::string] : File name full path (relative to root)
-  **/
+  /// @brief Renames and/or moves a files in the git repository tree 
+  /// @param fullpath The full path including the file/direcotry name to move from
+  /// @param toFullpath The full path including the new file/directory name to move to
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto mv(const std::string& fullpath, const std::string& toFullpath) noexcept
   {
-    return [&fullpath, &toFullpath](context&& ctx) -> Result<context> {
+    return [&fullpath, &toFullpath](Context&& ctx) -> Result<Context> {
       return ni::mv(std::move(ctx), fullpath, toFullpath);
     };
   }
 
- /**
-  * Adds files and their contents
-  *
-  * @param fileAndContents[set<std::pair<std::string, ,std::string>>]   A Set of files and content pairs
-  **/
+  /// @brief Adds a set of files and their contents 
+  /// @param filesAndContents fullpath, content pair set
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto add(const std::set<std::pair<std::string, std::string> >& filesAndContents) noexcept
   {;
-    return [&filesAndContents](context&& ctx) -> Result<context> {
-      Result<context>  foldingCtx(std::move(ctx));
+    return [&filesAndContents](Context&& ctx) -> Result<Context> {
+      Result<Context>  foldingCtx(std::move(ctx));
 
       for (const auto& [fullpath, content] : filesAndContents)
       {
@@ -319,56 +205,35 @@ namespace gd
     };
   }
 
-  /**
-   * Commit previous updates to the context(Repository/Branch)
-   *
-   * @param author[std::string]  :  commiter's name (assuming commiter == author)
-   * @param email[std::string]   :  commiter's email
-   * @param message[std::string] :  Commit's message
-   **/
+  /// @brief Commit previous updates to the context(Repository/Branch)
+  /// @param author commiter's name (assuming commiter == author)
+  /// @param email commiter's email
+  /// @param message Commit's message
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto commit(const std::string& author, const std::string& email, const std::string& message) noexcept
   {
-    return [&author, &email, &message](context&& ctx) -> Result<context>  {
+    return [&author, &email, &message](Context&& ctx) -> Result<Context>  {
        return ni::commit(std::move(ctx), author, email, message);
     };
   }
 
-
-  /**
-   * Commit previous updates to the context(Repository/Branch)
-   *
-   * @param author[std::string]  :  commiter's name (assuming commiter == author)
-   * @param email[std::string]   :  commiter's email
-   * @param message[std::string] :  Commit's message
-   **/
+  /// @brief Rollback all updates since last commit 
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto rollback() noexcept
   {
-    return [](context&& ctx) -> Result<context>  {
+    return [](Context&& ctx) -> Result<Context>  {
        return ni::rollback(std::move(ctx));
     };
   }
-  /**
-   * Creates a branch in a given repository, from a given commitId 
-   *
-   * @param commitId[git_oid] : The originating commit for the branch
-   * @param name[std::string] : Branch name
-   **/
+
+  /// @brief Branch from a `commitId` 
+  /// @param commitId The commit Id to branch from
+  /// @param name The new branch's name
+  /// @return On success returns a context for continuation, otherwise an Error
   inline auto createBranch(const git_oid* commitId, const std::string& name) noexcept
   {
-     return [&commitId, &name](context&& ctx) -> Result<context> {
+     return [&commitId, &name](Context&& ctx) -> Result<Context> {
        return ni::createBranch(std::move(ctx), commitId, name);
-     };
-  }
-
-  /**
-   * Creates a new branch in a given repository, from the context's tip 
-   *
-   * @param name[std::string] : Branch name
-   **/
-  inline auto createBranch(const std::string& name) noexcept
-  {
-     return [&name](context&& ctx) -> Result<context> {
-       return ni::createBranch(std::move(ctx), name);
      };
   }
 
@@ -376,13 +241,30 @@ namespace gd
    * Reads file content in a given context
    * @param fullpath[string] : Full path of file
    **/
+  /// @brief Branch from currnt Context's tip
+  /// @param name The new branch's name
+  /// @return On success returns a context for continuation, otherwise an Error
+  ///
+  /// NOTE: Branch creation doesn't change the Context's branch, to do so execute `setBranch`
+  inline auto createBranch(const std::string& name) noexcept
+  {
+     return [&name](Context&& ctx) -> Result<Context> {
+       return ni::createBranch(std::move(ctx), name);
+     };
+  }
+
+  /// @brief Read a file(blob)'s contents 
+  /// @param fullpath The fullpath of the file in the repository
+  /// @return The file contents as a string
   inline auto read(const std::string& fullpath) noexcept
   {
-    return [&fullpath](context&& ctx) -> Result<std::string> {
+    return [&fullpath](Context&& ctx) -> Result<std::string> {
       return ni::read(std::move(ctx), fullpath);
     };
   }
 
+  /// @brief Access support command chaining via the expect primitives of and_then/or_else
+  /// shorthand replaces them with the operators >> and || for increased readablity
   namespace shorthand {
 
     template <typename L, typename F>
@@ -398,6 +280,7 @@ namespace gd
     }
 
     /**
+     * EXPERIMENAL:
      *  ThreadChainingContext enables disjoint gd commands using the last context of the reference.
      *
      *  Example:
@@ -415,7 +298,7 @@ namespace gd
     class ThreadChainingContext {};
     static ThreadChainingContext db;
 
-    Result<context> getThreadContext() noexcept;
+    Result<Context> getThreadContext() noexcept;
 
     /**
      * Support for call chaining, 

@@ -1,6 +1,7 @@
 #include <git2.h>
 #include <guard.h>
 #include <string.h>
+#include <out.h>
 
 Result<gd::blob_t>
 getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) noexcept {
@@ -11,7 +12,6 @@ getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) 
 
   if (git_object_type(object) == GIT_OBJECT_BLOB) 
     return reinterpret_cast<git_blob*>(object);
-    /// TODO: What is this ->> return make_guard(git_blob_free, reinterpret_cast<git_blob*>(object));
 
   return unexpected(gd::ErrorType::BadFile, path.string() + " is not a file(blob)");
 }
@@ -77,9 +77,7 @@ getCommitByRef(git_repository* repo, const std::string& ref ) noexcept {
     return unexpected_err(commitObj.error());
 
   if (auto type = git_object_type(*commitObj); type != GIT_OBJECT_COMMIT)
-  { /// TODO: Update output -> add decltype in error
-    return unexpected(gd::ErrorType::EmptyCommit, ref + " is not a reference to a commit");
-  }
+    return unexpected(gd::ErrorType::EmptyCommit, ref + " is '" + stringify(type) + "', while a commit is expected" );
 
   return commitObj->castMove<git_commit, git_commit_free>();
 }

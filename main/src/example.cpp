@@ -8,6 +8,7 @@
 
 #include <openssl/sha.h>
 #include "generator.h"
+#include <spdlog/sinks/basic_file_sink.h>
 
 using namespace gd;
 using namespace gd::shorthand; // add >>, || chaining 
@@ -20,11 +21,14 @@ inline void assertError(char const * msg, const string& err)
 
 void sanityCheck()
 {
-  cout << "Basic interface tests " << endl;
+  std::cout << "Basic interface tests " << endl;
   const string repoPath = "/tmp/test/sanityCheck";
-  std::filesystem::remove_all(repoPath);
+  cleanRepo(repoPath);
 
   try {
+    auto logger = spdlog::basic_logger_mt("interace", "/tmp/test/logs/sanityCheck.log");
+    setLogger(logger);
+
     auto ctx = selectRepository(repoPath)
       >> add("README", "bla bla\n")
       >> commit("mno", "mno@xmousse.com.org", "...\n")
@@ -67,18 +71,19 @@ void sanityCheck()
       >> commit("mno", "mno@xmousse.com.org", "remove header file")
       || [](const auto& err) { assertError("Unable to remove or move files", err); };
 
-  //   std::cout << "The blank Slate review: " << *content << std::endl;
+    // std::cout << "The blank Slate review: " << *content << std::endl;
   } catch(const runtime_error& e)  { cout << "Error:" << e.what() << endl; }
   std::cout << "The end" << std::endl;
 }
+
 // Output
 //                                           Naive(1) - Per file write      Collect - per dir write
 //                                          -----------------------------   ---------------------------
-// Commiting :      1 Files / 13 domains :: 0.00869548s 115.002 files/s :: 0.00905408s 110.447 files/s
-// Commiting :     10 Files / 13 domains ::  0.0909334s 109.971 files/s ::   0.045195s 221.263 files/s
-// Commiting :    100 Files / 13 domains ::       1.11s  90.144 files/s ::   0.419095s 238.609 files/s
-// Commiting :  1,000 Files / 13 domains ::      37.94s  26.358 files/s ::    3.27252s 305.575 files/s
-// Commiting : 10,000 Files / 13 domains ::   3,259.63s   3.679 files/s ::      16.95s 589.969 files/s
+// Commiting :      1 Files / 13 domains :: 0.00869548s 115.002 files/s :: 0.00413757s 241.688 files/s
+// Commiting :     10 Files / 13 domains ::  0.0909334s 109.971 files/s ::  0.0329744s 303.265 files/s
+// Commiting :    100 Files / 13 domains ::       1.11s  90.144 files/s ::   0.203213s 492.094 files/s
+// Commiting :  1,000 Files / 13 domains ::      37.94s  26.358 files/s ::    1.92068s 520.649 files/s
+// Commiting : 10,000 Files / 13 domains ::   3,259.63s   3.679 files/s ::    15.6622s 638.479 files/s
 //
 // (1) Naively add one file at a time, updating the entire tree up to root
 // (2) Collect all elements, on commit, update each directory once
@@ -88,7 +93,10 @@ void sanityCheck()
 //     Improvement can be moving to std::unordered_map (Constant time) + sorting O(logN)
 void speedTest()
 {
-  cout << "\n\nWrite speed test" << endl;
+  auto logger = spdlog::basic_logger_mt("speed logger", "/tmp/test/logs/speedTest.log");
+  setLogger(logger);
+
+  std::cout << "\n\nWrite speed test" << endl;
   constexpr size_t numFilesPerDomain(100);
   constexpr size_t maxFileSize(1000);
 
@@ -122,7 +130,7 @@ void speedTest()
     auto durationMs = chrono::duration <double, micro> (end - start).count();
     auto durationS = chrono::duration <double> (end - start).count();
 
-    cout << "Commiting : " << right << setw(5) << numFiles  << " Files for " <<  domains.size() << " domains :: "
+    std::cout << "Commiting : " << right << setw(5) << numFiles  << " Files for " <<  domains.size() << " domains :: "
          <<  setw(12) <<  durationS << "s   "
          <<  setw(10) << (numFiles / durationS) << " files/s" << endl;
 

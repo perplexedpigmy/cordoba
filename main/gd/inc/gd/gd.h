@@ -69,17 +69,16 @@ namespace gd
        **/ 
       static Result<gd::Context> init(gd::Context&& ctx) noexcept;
 
-      
       /**
        * @brief Updates the tip to given commit by commitId
        * @param ctx The old context, with valid repository/reference 
        **/ 
       Result<void> update(gd::Context&& ctx, git_oid* commitId) noexcept;
 
-      /// @brief The latest commit of the context 
+      /// @brief The commit used
       commit_t commit_;
 
-      /// @brief Root tree of context 
+      /// @brief Root tree of the commit
       tree_t root_;
     };
   };
@@ -103,11 +102,24 @@ namespace gd
 
     Result<gd::Context> updateCommitTree(const git_oid& treeOid) noexcept;
 
+    git_oid const * getCommitId() const noexcept;
+
     repository_t* repo_;     /*  git repository             */
     std::string   ref_;      /*  git reference (branch tip) */
     TreeCollector updates_;  /*  Collects updates           */
 
     internal::Node tip_;   /* Internal call chaining information */
+  };
+
+  class ReadContext : public Context {
+    std::string content_;
+
+    public:
+    ReadContext(Context&& ctx, std::string&& content) noexcept
+    : Context{ std::move(ctx) }, content_{ std::move(content)}
+    { }
+
+    const std::string& content() const noexcept { return content_; }
   };
 
   namespace ni
@@ -121,7 +133,8 @@ namespace gd
     Result<Context> commit(Context&& ctx, const std::string& author, const std::string& email, const std::string& message) noexcept;
     Result<Context> rollback(Context&& ctx) noexcept;
 
-    Result<std::string> read(Context&& ctx, const std::string& fullpath) noexcept;
+    Result<ReadContext> read(Context&& ctx, const std::filesystem::path& fullpath) noexcept;
+    Result<gd::ReadContext> readblob(gd::Context&& ctx, git_blob* blob, const std::filesystem::path& fullpath) noexcept;
   }
 
   /// @brief Sets a user spdLog::Logger to accomodate for application needs
@@ -212,8 +225,8 @@ namespace gd
   /// @return On success returns a context for continuation, otherwise an Error
   inline auto commit(const std::string& author, const std::string& email, const std::string& message) noexcept
   {
-    return [&author, &email, &message](Context&& ctx) -> Result<Context>  {
-       return ni::commit(std::move(ctx), author, email, message);
+    return [&author, &email, &message](Context &&ctx) -> Result<Context> {
+      return ni::commit(std::move(ctx), author, email, message);
     };
   }
 
@@ -221,8 +234,8 @@ namespace gd
   /// @return On success returns a context for continuation, otherwise an Error
   inline auto rollback() noexcept
   {
-    return [](Context&& ctx) -> Result<Context>  {
-       return ni::rollback(std::move(ctx));
+    return [](Context &&ctx) -> Result<Context> {
+      return ni::rollback(std::move(ctx));
     };
   }
 
@@ -232,9 +245,9 @@ namespace gd
   /// @return On success returns a context for continuation, otherwise an Error
   inline auto createBranch(const git_oid* commitId, const std::string& name) noexcept
   {
-     return [&commitId, &name](Context&& ctx) -> Result<Context> {
-       return ni::createBranch(std::move(ctx), commitId, name);
-     };
+    return [&commitId, &name](Context &&ctx) -> Result<Context> {
+      return ni::createBranch(std::move(ctx), commitId, name);
+    };
   }
 
   /**
@@ -248,17 +261,17 @@ namespace gd
   /// NOTE: Branch creation doesn't change the Context's branch, to do so execute `setBranch`
   inline auto createBranch(const std::string& name) noexcept
   {
-     return [&name](Context&& ctx) -> Result<Context> {
-       return ni::createBranch(std::move(ctx), name);
-     };
+    return [&name](Context &&ctx) -> Result<Context> {
+      return ni::createBranch(std::move(ctx), name);
+    };
   }
 
   /// @brief Read a file(blob)'s contents 
   /// @param fullpath The fullpath of the file in the repository
   /// @return The file contents as a string
-  inline auto read(const std::string& fullpath) noexcept
+  inline auto read(const std::filesystem::path& fullpath) noexcept
   {
-    return [&fullpath](Context&& ctx) -> Result<std::string> {
+    return [&fullpath](Context&& ctx) -> Result<ReadContext> {
       return ni::read(std::move(ctx), fullpath);
     };
   }

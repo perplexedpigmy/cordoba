@@ -151,7 +151,7 @@ namespace {
 
     auto pRepo = sGit.cacheRepo(fullpath, std::move(*repo));
 
-    sLogger->info("Created repository {} with creator '{}'", fullpath, name);
+    sLogger->debug("Created repository {} with creator '{}'", fullpath, name);
     return gd::Context{pRepo, sHead};;
   }
 
@@ -178,7 +178,7 @@ namespace {
 
     auto pRepo = sGit.cacheRepo(fullpath, std::move(*repo));
 
-    sLogger->info("Connected to repository {}", fullpath);
+    sLogger->debug("Connected to repository {}", fullpath);
     return gd::Context{pRepo, sHead};
   }
 }
@@ -193,7 +193,7 @@ gd::ObjectUpdate::createBlob(gd::Context& ctx,const std::filesystem::path& fullp
   if (git_blob_create_from_buffer(&blob.oid_, *ctx.repo_, content.c_str(), content.size()) != 0)
     return unexpected_git;
 
-  sLogger->info("Blob created {}: {}", fullpath, blob.oid_);
+  sLogger->debug("Blob created {}: {}", fullpath, blob.oid_);
   return std::move(blob);
 }
 
@@ -206,8 +206,7 @@ gd::ObjectUpdate::fromEntry(gd::Context& ctx,const std::filesystem::path& fullpa
   if (git_oid_cpy(&elem.oid_, oid) !=  0)
     return unexpected_git;
 
-  // sLogger->info("Created {} from {} with {} mode", fullpath, &oid, mod );
-  sLogger->info("Created {} from {} with {}", fullpath, elem.oid_, mod);
+  sLogger->debug("Created {} from {} with {}", fullpath, elem.oid_, mod);
   return std::move(elem);
 }
 
@@ -215,7 +214,8 @@ Result<gd::ObjectUpdate>
 gd::ObjectUpdate::remove(const std::filesystem::path& fullpath) noexcept {
   ObjectUpdate removed { create(fullpath, GIT_FILEMODE_UNREADABLE /* Ingored */, &gd::ObjectUpdate::remove ) };
 
-  sLogger->info("Removed {}", fullpath);
+
+  sLogger->debug("Removed {}", fullpath);
   return std::move(removed);
 }
 
@@ -237,10 +237,9 @@ gd::ObjectUpdate::createDir(const std::filesystem::path& fullpath, treebuilder_t
   if(git_treebuilder_write(&dir.oid_, bld) != 0)
     return unexpected_git;
 
-  sLogger->info("Create directoy '{}'", fullpath);
+  sLogger->debug("Create directoy '{}'", fullpath);
   return std::move(dir);
 }
-
 
 /*******************************************************************************
  *                             internal::TreeBuilder
@@ -250,8 +249,10 @@ void
 gd::TreeCollector::insert(const std::filesystem::path& fullpath, const ObjectUpdate&& obj) noexcept {
   if (auto itr = dirObjs_.find(fullpath); itr != dirObjs_.end()) {
     itr->second.emplace_back(std::move(obj));
+    sLogger->debug("TreeCollector: Added to /{} -> '{}'", fullpath, obj.name());
   } else {
     dirObjs_.emplace( fullpath, ObjectList(1, obj) );
+    sLogger->debug("TreeCollector: Inserted /{} with {}", fullpath, obj.name());
   }
 }
 
@@ -291,7 +292,7 @@ gd::TreeCollector::apply(gd::Context& ctx) noexcept {
   for (const auto& [dir, objs]: dirObjs_) {
     bool isRootDir = dir.empty();
 
-    sLogger->trace("Apply: Processing {} # {}", dir, objs.size());
+    sLogger->debug("Apply: Processing '/{}' # {}", dir, objs.size());
     auto tree = getTreeRelativeToRoot(*ctx.repo_, ctx.tip_.root_, dir);
     if (!tree)
       return unexpected_err(tree.error());
@@ -310,16 +311,45 @@ gd::TreeCollector::apply(gd::Context& ctx) noexcept {
     } else {
       treeOid = parentDir->oid();
       
-      if (!isRootDir)  
+      if (!isRootDir) { 
         insert(dir.parent_path(), std::move(*parentDir));
+      }
     }
   }
 
   if (treeOid == nullptr) 
     return unexpected(gd::ErrorType::EmptyCommit, "No updates made");
 
-  dirObjs_.clear(); // The updates are only on success 
+  dirObjs_.clear(); // Clear updates only on success 
   return getTree(*ctx.repo_, treeOid);
+}
+
+// TODO: If the order of application of dirObjs_ is irrelevant its type can be replace to a hash or a map
+//       In which case only the last action of an element will be collected and retrieval will be O(1) or O(log n)
+//       as opposed to the now O(n) retrival that can affect very big transactions in the same directory
+//       Even if the order is significant, an addtional hash could be introduced for the same effect.
+Result<git_blob*> 
+gd::TreeCollector::getBlobByPath(const gd::Context& ctx, const std::filesystem::path& fullpath) const noexcept  {
+  
+  auto dir = fullpath.parent_path();
+  auto name = fullpath.filename();
+
+  auto dirObjsIdx = dirObjs_.find(dir);
+  if (dirObjsIdx == dirObjs_.end()) 
+    return unexpected(gd::ErrorType::BadDir, "not found in current context");
+
+  const auto& [_, objList] = *dirObjsIdx;
+  for(int i=objList.size() - 1; i >=0; --i ) {
+    const auto obj = objList[i];
+    if (obj.name() == name)  {
+      if (obj.isDelete())
+        return unexpected(gd::ErrorType::Deleted, "File deleted in uncommited context") 
+      else 
+        return getBlobById(*ctx.repo_, obj.oid());
+    }
+  }
+
+  return unexpected(gd::ErrorType::NotFound, "No update found in uncommited context");
 }
 
 /*******************************************************************************
@@ -336,6 +366,11 @@ void gd::Context::setBranch(const std::string& fullPathRef) noexcept
 {
   /// TODO: Does `tip` need an update
   ref_ = fullPathRef;
+}
+
+git_oid const *
+gd::Context::getCommitId() const noexcept {
+  return git_commit_id(tip_.commit_);
 }
 
 /*******************************************************************************
@@ -399,10 +434,9 @@ gd::internal::Node::update(gd::Context&& ctx, git_oid* commitId) noexcept {
   commit_ = std::move(*commit);
   root_ = std::move(*tree);
 
-  sLogger->trace("Tip updated to {}", *commitId);
+  sLogger->debug("Tip updated to {}", *commitId);
   return Result<void>();
 }
-
 
 /*******************************************************************************
  *                            Interface implementation
@@ -414,10 +448,10 @@ gd::setLogger(std::shared_ptr<spdlog::logger> newLogger) noexcept {
   return newLogger; 
 }
 
- bool 
- gd::cleanRepo(const std::filesystem::path& repoFullPath) noexcept {
-   return sGit.cleanRepo(repoFullPath);
- }
+bool 
+gd::cleanRepo(const std::filesystem::path& repoFullPath) noexcept {
+  return sGit.cleanRepo(repoFullPath);
+}
 
 Result<gd::Context>
 gd::selectRepository(const std::filesystem::path& fullpath, const std::string& name) noexcept
@@ -445,7 +479,7 @@ gd::ni::selectBranch(gd::Context&& ctx, const std::string& name) noexcept
   sGit.setThreadBranch(ref);
   ctx.ref_ =  std::move(ref);
 
-  sLogger->trace("Switched branch to {}", name);
+  sLogger->debug("Switched branch to {}", name);
   return internal::Node::init(std::move(ctx));
 }
 
@@ -464,7 +498,7 @@ gd::ni::add(gd::Context&& ctx, const std::filesystem::path& fullpath, const std:
   if (!res) 
     return unexpected_git;
 
-  sLogger->trace("Add Blob", fullpath);
+  sLogger->debug("Add Blob", fullpath);
   return std::move(ctx);
 }
 
@@ -482,7 +516,7 @@ gd::ni::rm(gd::Context&& ctx, const std::string& fullpath) noexcept
   if (!res) 
     return unexpected_git;
 
-  sLogger->trace("Remove file", fullpath);
+  sLogger->debug("Remove file", fullpath);
   return std::move(ctx);
 }
 
@@ -508,7 +542,7 @@ gd::ni::mv(gd::Context&& ctx, const std::string& fullpath, const std::string& to
   if( auto res = ctx.updates_.removeFile(ctx, fullpath); !res)
     return unexpected_git;
 
-  sLogger->trace("Move {} to {}", fullpath, toFullPath);
+  sLogger->debug("Move {} to {}", fullpath, toFullPath);
   return std::move(ctx);
 }
 
@@ -557,7 +591,7 @@ gd::ni::commit(gd::Context&& ctx, const std::string& author, const std::string& 
   if (auto res = ctx.tip_.update(ctx.repo_, &commitId); !res) 
     return unexpected_err(res.error());
 
-  sLogger->info("Commited on ref {} {}({}): {}", ctx.ref_, commitId, author, message);
+  sLogger->debug("Commited on ref {} {}({}): {}", ctx.ref_, commitId, author, message);
   return std::move(ctx);
 }
 
@@ -606,21 +640,34 @@ gd::ni::createBranch(gd::Context&& ctx, const std::string& name) noexcept
   return std::move(ctx);
 }
 
-/// @brief Reads content of blob(gitspeak for file)
+/// @brief Reads content of blob(gitspeak for file), first from uncommited context, otherwise from repository
 /// @param ctx The context used to access the repository
 /// @param fullpath The fullpath of the blob
 /// @return A string representation of the file's content.
-Result<std::string>
-gd::ni::read(gd::Context&& ctx, const std::string& fullpath) noexcept
+Result<gd::ReadContext>
+gd::ni::read(gd::Context&& ctx, const std::filesystem::path& fullpath) noexcept
 {
+  // Search content in context, Error shortcut if deleted
+  auto contextBlob = ctx.updates_.getBlobByPath(ctx, fullpath);
+  if (!contextBlob && contextBlob.error()._type == gd::ErrorType::Deleted )
+    return unexpected_err(contextBlob.error());
+  
+  if (!!contextBlob)
+    return readblob(std::move(ctx), *contextBlob, fullpath);
+
   auto blob = getBlobFromTreeByPath(ctx.tip_.root_, fullpath);
   if (!blob)
     return unexpected_err(blob.error());
+    
+  return readblob(std::move(ctx), *blob, fullpath);
+}
 
+
+Result<gd::ReadContext>
+gd::ni::readblob(gd::Context&& ctx, git_blob * blob, const std::filesystem::path& fullpath) noexcept {
   git_blob_filter_options opts = GIT_BLOB_FILTER_OPTIONS_INIT;
-
   git_buf buffer = GIT_BUF_INIT_CONST("", 0);
-  if (git_blob_filter(&buffer, *blob, fullpath.c_str(), &opts) != 0)
+  if (git_blob_filter(&buffer, blob, fullpath.c_str(), &opts) != 0)
     return unexpected_git;
 
   std::string content(buffer.ptr, buffer.size);
@@ -628,7 +675,7 @@ gd::ni::read(gd::Context&& ctx, const std::string& fullpath) noexcept
   git_buf_dispose(&buffer);
   git_buf_free(&buffer);
 
-  return  content;
+  return ReadContext(std::move(ctx), std::move(content));
 }
 
 /// @brief Gets thread content, support for thread_local context call chaining 

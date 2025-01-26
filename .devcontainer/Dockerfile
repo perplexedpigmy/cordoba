@@ -24,7 +24,7 @@ RUN \
   && usermod --shell /bin/bash $USERNAME \
   #
   # Persist history between different builds
-  && SNIPPET="PROMPT_COMMAND='history -a' && export HISTFILE=/cmdhistory/.bash_history" \
+  && SNIPPET="PROMPT_COMMAND='history -a' && export HISTFILE=/cmdhistory/.bash_history && export LESSCHARSET=utf-8" \
   && mkdir /cmdhistory \
   && touch /cmdhistory/.bash_history \
   && chown -R $USERNAME /cmdhistory/.bash_history \
@@ -70,7 +70,7 @@ RUN \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/Wilfred/difftastic" \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/casey/just -s just-1.36.0-x86_64-unknown-linux-musl.tar.gz:just" \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/ogham/exa -s exa-linux-x86_64-v0.10.1.zip:bin/exa" \
-  && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/sharkdp/bat -s bat-v0.24.0-x86_64-unknown-linux-gnu.tar.gz:bat-v0.24.0-x86_64-unknown-linux-gnu/bat" \
+  && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/sharkdp/bat -s bat-v0.25.0-x86_64-unknown-linux-gnu.tar.gz:bat-v0.25.0-x86_64-unknown-linux-gnu/bat" \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/mikefarah/yq  -s yq_linux_amd64" \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/direnv/direnv"  \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/BurntSushi/ripgrep -s ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz:ripgrep-14.1.1-x86_64-unknown-linux-musl/rg" \

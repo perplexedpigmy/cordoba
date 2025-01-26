@@ -3,6 +3,16 @@
 #include <string.h>
 #include <out.h>
 
+Result<git_blob*>
+getBlobById(git_repository* repo, git_oid const * blobId) noexcept {
+  git_blob * blob { nullptr };
+  int result = git_blob_lookup(&blob, repo, blobId);
+  if (result != 0) 
+    return unexpected_git;
+  
+  return blob;
+}
+
 Result<gd::blob_t>
 getBlobFromTreeByPath(git_tree const * root, const std::filesystem::path& path) noexcept {
   git_object *object;
@@ -154,4 +164,31 @@ getTreeEntry(const git_tree* root, const std::string& fullpath) {
     return unexpected_git;
 
   return entry;
+}
+
+Result<std::string>
+contentOf(git_repository* repo, git_oid const * commitId, const std::filesystem::path& fullpath) noexcept {
+  auto resCommit = getCommitById(repo, commitId);
+  if (!resCommit) 
+    return unexpected_err(resCommit.error()) ;
+
+  auto resTree = getTreeOfCommit(repo, *resCommit);
+  if (!resTree) 
+    return unexpected_err(resTree.error());
+
+  auto resBlob = getBlobFromTreeByPath(*resTree, fullpath);
+  if (!resBlob) 
+    return unexpected_err(resBlob.error()) ;
+
+  return std::string(static_cast<const char*>(git_blob_rawcontent(*resBlob)));
+}
+
+Result<git_oid const *> 
+referenceCommit(git_repository* repo, const std::string& ref) noexcept {
+    auto commitRes = getCommitByRef(repo, ref);
+    if (!commitRes) 
+      return unexpected_git;
+
+    auto oid = git_commit_id(*commitRes); 
+    return oid;
 }

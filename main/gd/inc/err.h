@@ -12,6 +12,9 @@ namespace gd {
     BlobError,
     GitError,
     InitialContext,
+    Deleted, 
+    NotFound,
+    Application, /* Generic Application error */
   };
 
   struct Error {

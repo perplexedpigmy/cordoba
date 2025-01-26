@@ -190,3 +190,25 @@ createRepository(const std::string& fullpath, const std::string& name) noexcept;
 /// @return On success returns the tree_entry for an element in the tree (dir or blob), Otherwise an Error 
 Result<gd::entry_t>
 getTreeEntry(const git_tree* root, const std::string& fullpath);
+
+/// @brief retrieves the content of a file found in `repo`:`commitId`:`fullpath`
+/// @param repo A pointer to an open git repository
+/// @param commitId `git_oid` of a commit
+/// @param fullpath Full path of the entry's location on the tree
+/// @return On success returns the tree_entry for an element in the tree (dir or blob), Otherwise an Error 
+Result<std::string>
+contentOf(git_repository* repo, git_oid const * commitId, const std::filesystem::path& fullpath) noexcept; 
+
+/// @brief retrieves the `git_oid` of a reference branch/tags etc
+/// @param repo A pointer to an open git repository
+/// @param ref The full path reference i.e. refs/heads/main 
+/// @return On success returns the git_oid* of the reference, otherwise an Error
+Result<git_oid const *> 
+referenceCommit(git_repository* repo, const std::string& ref) noexcept;
+
+/// @brief retieves a blob y its Id
+/// @param repo A pointer to an open git repository
+/// @param blobId The blog `git_oid`
+/// @return On successa RAII git_blob otherwise and error
+Result<git_blob*>
+getBlobById(git_repository* repo, git_oid const * blobId) noexcept;

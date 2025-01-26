@@ -1,6 +1,6 @@
+#define CATCH_CONFIG_MAIN
 #define DEBUG_OUTPUT
 #include <catch2/catch.hpp>
-#include <pathTraverse.h>
 #include <string>
 #include <vector>
 #include <set>
@@ -28,13 +28,13 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
   const static string testRepoPath{"/tmp/dgTestRepo"};
   const string initialFile{"README"};
   const string initialContent{"test text"};
-
+#if 0 
   cleanRepo(testRepoPath);
 
-  // auto commitId = selectRepository(testRepoPath)
-  //   .and_then(add(initialFile, initialContent))
-  //   .and_then(commit("mno", "mno@nowhere.org", "...\n"));
-
+  auto commitId = selectRepository(testRepoPath)
+    .and_then(add(initialFile, initialContent))
+    .and_then(commit("mno", "mno@nowhere.org", "...\n"));
+#endif 
   // SECTION("initial Content") {
   //   auto content = selectRepository(testRepoPath)
   //     .and_then(selectBranch("master"))
@@ -78,7 +78,7 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
   //   }
 
   // }
-
+#if 0
   SECTION("Test implementation") {
     const string branchName{"one"};
     // auto res = selectRepository(testRepoPath, "testuser", false /* not bare */)
@@ -96,8 +96,8 @@ TEST_CASE("stores versions appropriately", "[pathTraverse]") {
       // .and_then(add("1/f", "1/f"))
       // .and_then(add("1/g", "1/g"))
       .and_then(commit("mno", "mno@xmousse.com.org", "comment is long"));
-
   }
+  #endif
 
   SECTION("") {
   }

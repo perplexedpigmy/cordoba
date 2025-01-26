@@ -2,8 +2,10 @@
 #include <expected.h>
 #include <guard.h>
 
+
 #include <map>
 #include <filesystem>
+#include <cstring>
 #include <git2.h>
 
 namespace gd {
@@ -34,7 +36,9 @@ namespace gd {
     }
     
     ObjectUpdate(std::string&& name, git_filemode_t mod, Action action) 
-    :name_(name), mod_(mod), action_(action) {}
+    :name_(name), mod_(mod), action_(action) {
+      std::memset(&oid_, 0, sizeof(git_oid));
+    }
 
     static ObjectUpdate create(const std::filesystem::path& fullpath, git_filemode_t mod, Action action) {
       return ObjectUpdate(fullpath.filename(), mod, action);
@@ -45,6 +49,10 @@ namespace gd {
       git_filemode_t mod() const noexcept { return mod_; }
       const std::string&  name() const noexcept { return name_; }
 
+      /// @return  returns True if the ObjectUpdate is delete in uncommited context
+      bool isDelete() const noexcept {
+        return git_oid_iszero(&oid_);
+      }
 
       /// @brief Creates a blob (gitspeak for a file) on a 'fullpath' location with 'content'
       /// @param ctx The context used to access the repository
@@ -80,6 +88,7 @@ namespace gd {
       /// @return On success nothing, otherwise an error.
       Result<void>
       gitIt(git_treebuilder* builder) const noexcept;
+
   };
 
   std::ostream& operator<<(std::ostream& os, ObjectUpdate const& ) noexcept;
@@ -92,7 +101,7 @@ namespace gd {
     bool operator()(const std::filesystem::path& a, const std::filesystem::path& b) const {
       auto aLen = std::distance(a.begin(), a.end());
       auto bLen = std::distance(b.begin(), b.end());
-      return aLen > bLen || a > b;
+      return (aLen != bLen) ? aLen > bLen : a > b;
     }
   };
 
@@ -152,5 +161,11 @@ namespace gd {
     bool empty() const noexcept {
       return dirObjs_.empty();
     }
+
+    /// @brief retrieves a not yet committed blob from the collector
+    /// @param fullpath The full path of blob to retrieve
+    /// @return On success returns a blob, otherwise an Error
+    Result<git_blob*> 
+    getBlobByPath(const Context& ctx, const std::filesystem::path& fullpath) const noexcept; 
   };
 }

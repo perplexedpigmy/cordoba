@@ -18,7 +18,18 @@
 				"ms-vscode.cpptools-extension-pack",
 				"twxs.cmake",
 				"DavidAnson.vscode-markdownlint",
-				"ms-azuretools.vscode-docker"
+				"ms-azuretools.vscode-docker",
+				"fill-labs.dependi",
+				"SpaceHub.asciiartify",
+				"formulahendry.code-runner",
+				"vadimcn.vscode-lldb",
+				"adpyke.codesnap",
+				"tamasfe.even-better-toml",
+				"tal7aouy.icons",
+				"oderwat.indent-rainbow",
+				"Cardinal90.multi-cursor-case-preserve",
+				"Gruntfuggly.todo-tree",
+				"WakaTime.vscode-wakatime"
 			]
 		}
 	},  

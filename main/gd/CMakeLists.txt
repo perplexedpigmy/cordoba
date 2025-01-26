@@ -25,9 +25,9 @@ list(APPEND CXX_FLAGS_DEBUG   -g3 -frecord-gcc-switches)
 list(APPEND CXX_FLAGS_RELEASE -g3)
 
 target_compile_options(gd PUBLIC
-                       $<$<CONFIG:Debug>:${CXX_FLAGS_DEBUG}>
-                       $<$<CONFIG:Release>:${CXX_FLAGS_RELEASE}>
-                       )
+  $<$<CONFIG:Debug>:${CXX_FLAGS_DEBUG}>
+  $<$<CONFIG:Release>:${CXX_FLAGS_RELEASE}>
+)
 
 target_include_directories(gd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
@@ -36,16 +36,12 @@ target_include_directories(gd PUBLIC
 )
 
 include(../../cmake/CPM.cmake)
-# CPMAddPackage(
-#   NAME git2
-#   GITHUB_REPOSITORY libgit2/libgit2
-#   GIT_TAG v1.3.0
-# )
 
 CPMAddPackage("gh:libgit2/libgit2#v1.3.0")
 CPMAddPackage("gh:TartanLlama/expected#v1.0.0")
 CPMAddPackage("gh:catchorg/Catch2@2.13.7")
 CPMAddPackage("gh:gabime/spdlog@1.15.0")
+CPMAddPackage("gh:CLIUtils/CLI11@2.4.2")
 
 # Avoid warnings in libgit2 build
 include(CheckCCompilerFlag)
@@ -73,22 +69,45 @@ target_link_libraries(gd PUBLIC spdlog)
 
 # export(TARGETS gd FILE MyLibraryConfig.cmake)
 
-add_executable(gdtest
-  test/testPathTraverser.cpp
-  test/testgd.cpp)
 
-target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-set_target_properties(gdtest
-  PROPERTIES
-    CXX_STANDARD 20
-    CXX_EXTENSIONS OFF
-    CXX_STANDARD_REQUIRED ON
-)
+list(APPEND TESTS      unit            greens)
+list(APPEND TEST_SRCS  test/testgd.cpp test/greens.cpp)
+foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
+  message(STATUS "TEST_NAME=${TEST_NAME}  TEST_SRC=${TEST_SRC}")
+  add_executable(${TEST_NAME}
+    ${TEST_SRC})
 
-target_link_libraries(gdtest PRIVATE
-   Catch2
-   gd
-   stdc++fs)
-target_include_directories(gdtest PRIVATE inc)
+  target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  set_target_properties(${TEST_NAME}
+    PROPERTIES
+      CXX_STANDARD 20
+      CXX_EXTENSIONS OFF
+      CXX_STANDARD_REQUIRED ON
+  )
+  
+  target_link_libraries(${TEST_NAME} PUBLIC CLI11)
+  target_link_libraries(${TEST_NAME} PRIVATE
+    Catch2
+    gd
+    stdc++fs)
+  target_include_directories(${TEST_NAME} PRIVATE inc)
+  
+  add_test( NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> --success)
 
-add_test( NAME pathTraverse COMMAND $<TARGET_FILE:gdtest> --success)
+endforeach()
+
+# target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+# set_target_properties(gdtest
+#   PROPERTIES
+#     CXX_STANDARD 20
+#     CXX_EXTENSIONS OFF
+#     CXX_STANDARD_REQUIRED ON
+# )
+
+# target_link_libraries(gdtest PRIVATE
+#    Catch2
+#    gd
+#    stdc++fs)
+# target_include_directories(gdtest PRIVATE inc)
+
+# add_test( NAME pathTraverse COMMAND $<TARGET_FILE:gdtest> --success)

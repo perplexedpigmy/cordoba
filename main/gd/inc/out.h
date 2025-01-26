@@ -50,13 +50,14 @@ namespace
   static std::string sha(git_oid const *oid)
   {
     char buf[GIT_OID_HEXSZ + 1];
-    return git_oid_tostr(buf, GIT_OID_HEXSZ, oid);
+    return git_oid_tostr(buf, GIT_OID_HEXSZ + 1, oid);
   }
 
+  // Assumes 9 bytes should be sufficiet for a normal debug use case
   static std::string shortSha(git_oid const *oid)
   {
-    char buf[GIT_OID_HEXSZ + 1];
-    return git_oid_tostr(buf, GIT_OID_HEXSZ, oid);
+    char buf[10];
+    return git_oid_tostr(buf, 10, oid);
   }
 
   std::ostream& operator<<(std::ostream &os, const git_oid &oid) noexcept

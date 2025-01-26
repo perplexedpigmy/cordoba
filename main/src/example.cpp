@@ -131,8 +131,8 @@ void speedTest()
     auto durationS = chrono::duration <double> (end - start).count();
 
     std::cout << "Commiting : " << right << setw(5) << numFiles  << " Files for " <<  domains.size() << " domains :: "
-         <<  setw(12) <<  durationS << "s   "
-         <<  setw(10) << (numFiles / durationS) << " files/s" << endl;
+      <<  setw(12) <<  durationS << "s   "
+      <<  setw(10) << (numFiles / durationS) << " files/s" << endl;
 
     dbx >> selectBranch("main"); // Reset the tip to HEAD
   }

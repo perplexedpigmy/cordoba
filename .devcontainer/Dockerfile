@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 LABEL version="1.0"
 LABEL maintainer="perplexedpigmy@xmousse.com"
-LABEL description="Ubuntu based gcc 13 docker image with OpenCV"
+LABEL description="Ubuntu based gcc 14 docker image with OpenCV"
 
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID

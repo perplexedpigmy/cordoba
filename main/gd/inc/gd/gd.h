@@ -33,7 +33,7 @@
  * TODO: Missing interface
  *         merge
  *         tag
- *
+ * TODO: Error, to keep all elements of git_error (klass)
  * TODO: lift & chain implementation
  * TODO: Tags support
  * TODO: Metadata support (notes)
@@ -73,7 +73,15 @@ namespace gd
        * @brief Updates the tip to given commit by commitId
        * @param ctx The old context, with valid repository/reference 
        **/ 
-      Result<void> update(gd::Context&& ctx, git_oid* commitId) noexcept;
+      Result<void> update(const gd::Context& ctx, git_oid const* commitId) noexcept;
+
+      /**
+       * @brief Updates the tip to the latest commit of the current reference
+       * @param ctx The old context, with valid repository/reference 
+       * @warning if multiple threads contribute to the same reference's evolution, serizlization is required by caller, or 
+       * the update risks not refelecting the last of reference. 
+       **/ 
+      Result<void> rebase(const gd::Context& ctx) noexcept;
 
       /// @brief The commit used
       commit_t commit_;
@@ -90,6 +98,12 @@ namespace gd
    **/
   struct Context
   {
+    repository_t* repo_;     /*  git repository             */
+    std::string   ref_;      /*  git reference (branch tip) */
+    TreeCollector updates_;  /*  Collects updates           */
+
+    internal::Node tip_;     /* Internal call chaining information */
+
     Context(repository_t* repo,
             const std::string& branch = defaultRef ) noexcept
     : repo_(repo), ref_(branch) {}
@@ -104,11 +118,9 @@ namespace gd
 
     git_oid const * getCommitId() const noexcept;
 
-    repository_t* repo_;     /*  git repository             */
-    std::string   ref_;      /*  git reference (branch tip) */
-    TreeCollector updates_;  /*  Collects updates           */
+    Result<void> update(git_oid const * commitId) noexcept { return tip_.update(*this, commitId); }
+    Result<void> rebase() noexcept { return tip_.rebase(*this); }
 
-    internal::Node tip_;   /* Internal call chaining information */
   };
 
   class ReadContext : public Context {

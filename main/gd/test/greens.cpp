@@ -20,6 +20,8 @@
 #include "inc/crudite.h"
 #include "spdlog/async.h"
 #include <spdlog/sinks/basic_file_sink.h>
+#include <future>
+#include <thread>
 #include <CLI/CLI.hpp>
 
 using namespace gd;
@@ -31,7 +33,7 @@ static GlycemicIt sGit;
 /// @return an Id
 /// The id will only be unique if there no more 26 callers 
 char getLetterId() noexcept {
-  static char id{1};
+  static char id{0};
   return id++ % 26 + 'A';
 }
 
@@ -39,13 +41,19 @@ char getLetterId() noexcept {
 /// @param ctx prevous Context
 /// @param numBranches the maximum number of allowed branches
 /// @return Context with changed branch, unelss there is some kind of error
-Result<gd::Context> randomizeBranch(Result<Context>&& ctx, int numBranches) noexcept {
+Result<gd::Context> randomizeBranch(char agentId, Result<Context>&& ctx, int numBranches) noexcept {
+  // Creating a new branch before the first commit, is meaningless and problematic
+  if (sGit.isEmpty()) 
+    return std::move(ctx);
+
   auto branchNum = std::experimental::randint(0, numBranches-1);
   auto [branchName, isNew] = sGit.getBranch(branchNum);
   if (isNew) {
     ctx = std::move(ctx).and_then(createBranch(branchName));
   }
-  return std::move(ctx).and_then(selectBranch(branchName));
+  ctx = std::move(ctx).and_then(selectBranch(branchName));
+  spdlog::info("({}) Switch to{} branch {} @ {}", agentId, (isNew ? " new" : ""), branchName, shortSha(ctx->getCommitId()));
+  return std::move(ctx);
 }
 
 // Each agent will do exactly `numCommits` as requested by the user
@@ -80,42 +88,63 @@ Result<Context> agent(
   ) noexcept {
     char agentId = getLetterId();
     size_t currentCommitNum = 0;
-    spdlog::info("({}) Started with #{} Branches #{} Commits #{} Max actions #{} max directory depth #{} max filename", 
-            agentId, numBranches, numCommits, numActions, maxDirectoryDepth, maxFilenameLength);
+    spdlog::info("Agent ({}) Started", agentId); 
 
+    // There are 2 critical sections in this testing code
+    // 1. selectRepository may create a repository, to avoid race condition where multiple threads create the same repository
+    // 2. Commits race condition can happen when multiple threads are trying to commit for the same branch serializing it, 
+    //    to solve this a critical section is pairing a forcing context to tip of branch with the commit(git rebase & commit paradigm)
+    //    This is a simple solution but as close as it can be to real use case, in a real use case the user 
+    //    should be responsoble to make sure that this pardigm makes sense or a merge/edit is required, prior to a commit.
+    static std::mutex criticalsection;
+
+    criticalsection.lock();
     auto ctx = selectRepository(repoPath);
+    criticalsection.unlock();
+
     if (!ctx)
       return ctx;
   
     while (sGit.ok() && !!ctx && currentCommitNum++ < numCommits) {
+      // std::scoped_lock serialize(criticalsection);
+      criticalsection.lock();
+      ctx->rebase();
       GlycemicIt::CommitProps props(ctx->getCommitId(), sGit);
-      size_t i = 0;
-      for ( auto& action : actionGenerator(s, numActions, sGit)) {
-        ctx = action->apply(std::move(ctx), props.elems_, agentId );
+      for (const auto &action : actionGenerator(s, numActions, sGit))
+      {
+        ctx = action->applyGit(std::move(ctx), props.elems_, agentId);
       }
-      if (!props.elems_.empty()) {
+      if (!props.elems_.empty())
+      {
         ctx = std::move(ctx)
-          .and_then(
-            commit(
-            "testagent", 
-            "agent@test.one", 
-            std::format("Commit {}:{}", agentId, currentCommitNum))
-          );
-      spdlog::info("({}) [{} {}] COMMIT #{}", agentId, ctx->ref_, shortSha(ctx->getCommitId()), currentCommitNum);
-      } 
+                  .and_then(
+                      commit(
+                          "agent "s + agentId,
+                          "agent@test.one",
+                          std::format("Commit {}:{}", agentId, currentCommitNum)));
+      criticalsection.unlock();
 
-    sGit.addCommit(ctx->getCommitId(), std::move(props));
-    ctx = randomizeBranch(std::move(ctx), numBranches); 
-  }
+        if (!ctx)
+        {
+          sGit.nok();
+        }
+        else
+        {
+          spdlog::info("({}) COMMIT #{} [{} {}] ", agentId, currentCommitNum, ctx->ref_, shortSha(ctx->getCommitId()));
+          sGit.addCommit(ctx->getCommitId(), std::move(props));
+        }
+      }
+      ctx = randomizeBranch(agentId, std::move(ctx), numBranches);
+    }
 
   return ctx;
 }
 
 /// @brief Sets logger 
-/// @param logPath 
+/// @param logPath log file path
 void setLogger(const std::filesystem::path& logPath) noexcept {
   auto glogger = spdlog::basic_logger_mt("grn", logPath);
-  glogger->set_pattern("[%H:%M:%S.%f] %=8l [=%t=] %v");
+  glogger->set_pattern("[%H:%M:%S.%f] %=8l [%t] %v");
   glogger->set_level(spdlog::level::info); 
   setLogger(glogger); // Library logger
   spdlog::set_default_logger(glogger); 
@@ -145,12 +174,11 @@ void setLogger(const std::filesystem::path& logPath) noexcept {
  */
 int main(int argc, char** argv)
 {
-
   CLI::App app{"Lets add some greens to the diet, and test our glycemic index"};
 
   std::filesystem::path testbase{ "/tmp/test"};
   int    seed = {-1};
-  size_t numAgents {1};
+  size_t numAgents {2};
   size_t maxBranches {3};
   size_t numCommits {10};
   size_t numActions {11};
@@ -177,19 +205,26 @@ int main(int argc, char** argv)
     seed = std::experimental::randint(0, 10000);
   std::experimental::reseed(seed);
 
-  spdlog::info("Starting test with random seed {}", seed);
+  spdlog::info("Starting test with random seed {}\n{:>5} agents\n{:>5} Branches\n{:>5} Commits\n{:>5} Max actions\n{:>5} max directory depth\n{:>5} max filename", 
+    seed, numAgents, maxBranches, numCommits, numActions, maxDirectoryDepth, maxFilenameLength);
 
   wgen::default_syllabary s(maxDirectoryDepth, maxFilenameLength);
-  auto res = agent(repoPath, s, 
-    maxBranches, 
-    numCommits, 
-    numActions, 
-    maxDirectoryDepth,
-    maxFilenameLength);
-  if (!res) {
-    std::cerr << "Error:" << res.error() << std::endl;
-    exit (-1);
+  std::vector<std::future<Result<gd::Context>>> futures;
+
+  for (size_t i = 0; i < numAgents; ++i) {
+    futures.push_back(std::async(std::launch::async, agent, repoPath, s, maxBranches, numCommits, numActions, maxDirectoryDepth, maxFilenameLength ));
   }
+
+  bool isError{false};
+  for (auto& future : futures) {
+    auto result = future.get(); // Joins and retrieves result
+    if (!result) {
+      isError = true;
+      std::cerr << "Failed: " << result.error() << std::endl;
+    }
+  }
+  if (isError) 
+    exit (-1);
 
   try {
     if (!sGit.valid(repoPath))  {

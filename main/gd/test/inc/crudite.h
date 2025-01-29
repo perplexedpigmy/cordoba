@@ -16,7 +16,8 @@ using namespace gd;
 // CRUD - Create, Read, Update and Delete
 class Crudité {
   public:
-    virtual Result<Context> apply(Result<Context>&&, GlycemicIt::Elements& elems, char agentId) const noexcept = 0;
+    using Application = std::function<void(GlycemicIt::Elements&)>;
+    virtual Result<Context> applyGit(Result<Context>&&, GlycemicIt::Elements& elems, char agentId) const noexcept = 0;
 };
 
 /// @brief CRTP construct whose sole purpose is adding getters to CRUD (and potentially other DB actions) 
@@ -38,7 +39,7 @@ public:
   Create(const wgen::syllabary& s) noexcept
   :name_{s.random_unique_filename()}, content_{s.random_content()} {}
 
-  Result<Context> apply(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
+  Result<Context> applyGit(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
     spdlog::info("({}) [{} {}] CREATE {} (size: {})", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name_, content_.size());
     elems.emplace_back(make_pair(name_, content_));
     return std::move(ctx).and_then(add(name_, content_));
@@ -54,12 +55,12 @@ public:
   Update(const wgen::syllabary& s) noexcept
   :content_{s.random_content()} {}
 
-  Result<Context> apply(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
+  Result<Context> applyGit(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
     if (elems.empty()) 
       return std::move(ctx);
 
     auto updateIdx = std::experimental::randint(0, static_cast<int>(elems.size() - 1));
-    std::filesystem::path name  = elems[updateIdx].first;
+    std::filesystem::path name = elems[updateIdx].first;
       
     spdlog::info("({}) [{} {}] UPDATE {} (size: {})", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name, content_.size());
     elems[updateIdx] = std::make_pair(name, content_);
@@ -76,15 +77,22 @@ class Delete : public Getter<Delete> {
 public:
   Delete(const wgen::syllabary& _) noexcept {}
 
-  Result<Context> apply(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
+  Result<Context> applyGit(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
     if (elems.empty()) 
       return std::move(ctx);
 
     auto delIdx = std::experimental::randint(0, static_cast<int>(elems.size() - 1));
-    std::filesystem::path name  = elems[delIdx].first;
+    std::filesystem::path name = elems[delIdx].first;
       
     spdlog::info("({}) [{} {}] DELETE {}", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name);
+    // std::cout << "Before " << elems.size() << " Removing " << name << std::endl;
+    // for (const auto& [name, _] : elems) 
+    //   std::cout << name << std::endl;
     elems.erase( elems.begin() + delIdx);
+
+    // std::cout << "After " << elems.size() << std::endl;
+    // for (const auto& [name, _] : elems) 
+    //   std::cout << name << std::endl;
     return std::move(ctx).and_then(del(name));
   }
 };
@@ -97,7 +105,7 @@ class Read : public Getter<Read> {
 public:
   Read(const wgen::syllabary& _) noexcept {}
 
-  Result<Context> apply(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
+  Result<Context> applyGit(Result<Context>&& ctx, GlycemicIt::Elements& elems, char agentId) const noexcept override {
     if (elems.empty()) 
       return std::move(ctx);
 
@@ -126,9 +134,10 @@ actionGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git)
   using Getter = std::unique_ptr<Crudité>(*)(const wgen::syllabary&) noexcept;
   using ProbabilityGetter= std::pair<double, Getter>;
 
+  // 20 30 10 40
   std::vector<ProbabilityGetter> getters = {
-    {20_percent, Create::get},
-    {30_percent, Update::get},
+    {25_percent, Create::get},
+    {25_percent, Update::get},
     {10_percent, Delete::get},
     {40_percent, Read::get},
   };

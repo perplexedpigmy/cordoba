@@ -195,8 +195,8 @@ bool GlycemicIt::valid(const std::filesystem::path& repoPath) const {
   return 
     ok_ 
     && valid_branches(*resRepo) 
-    && valid_content(*resRepo)
-    && valid_removals(*resRepo);
+    && valid_removals(*resRepo)
+    && valid_content(*resRepo);
 }
 
 

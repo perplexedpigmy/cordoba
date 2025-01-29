@@ -202,7 +202,7 @@ contentOf(git_repository* repo, git_oid const * commitId, const std::filesystem:
 /// @brief retrieves the `git_oid` of a reference branch/tags etc
 /// @param repo A pointer to an open git repository
 /// @param ref The full path reference i.e. refs/heads/main 
-/// @return On success returns the git_oid* of the reference, otherwise an Error
+/// @return On success returns the git_oid* of the commit, otherwise an Error
 Result<git_oid const *> 
 referenceCommit(git_repository* repo, const std::string& ref) noexcept;
 

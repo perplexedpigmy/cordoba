@@ -1,8 +1,8 @@
 CMAKE_MINIMUM_REquired(VERSION 3.14 FATAL_ERROR)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-list(APPEND NAMES gitter          )
-list(APPEND SRCS  src/example.cpp )
+list(APPEND NAMES speed          example)
+list(APPEND SRCS  src/timing.cpp src/example.cpp)
 add_subdirectory(gd)
 
 foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)

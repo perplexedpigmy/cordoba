@@ -70,8 +70,8 @@ target_link_libraries(gd PUBLIC spdlog)
 # export(TARGETS gd FILE MyLibraryConfig.cmake)
 
 
-list(APPEND TESTS      unit            greens)
-list(APPEND TEST_SRCS  test/testgd.cpp test/greens.cpp)
+list(APPEND TESTS      crud          greens)
+list(APPEND TEST_SRCS  test/crud.cpp test/greens.cpp)
 foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
   message(STATUS "TEST_NAME=${TEST_NAME}  TEST_SRC=${TEST_SRC}")
   add_executable(${TEST_NAME}

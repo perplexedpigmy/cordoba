@@ -42,17 +42,24 @@ char getLetterId() noexcept {
 /// @param numBranches the maximum number of allowed branches
 /// @return Context with changed branch, unelss there is some kind of error
 Result<gd::Context> randomizeBranch(char agentId, Result<Context>&& ctx, int numBranches) noexcept {
+  static std::mutex branchCreation;
   // Creating a new branch before the first commit, is meaningless and problematic
   if (sGit.isEmpty()) 
     return std::move(ctx);
 
   auto branchNum = std::experimental::randint(0, numBranches-1);
+
+  std::scoped_lock serialize(branchCreation);
   auto [branchName, isNew] = sGit.getBranch(branchNum);
   if (isNew) {
     ctx = std::move(ctx).and_then(createBranch(branchName));
+    if (!ctx) {
+      return unexpected_err(ctx.error());
+    }
   }
   ctx = std::move(ctx).and_then(selectBranch(branchName));
   spdlog::info("({}) Switch to{} branch {} @ {}", agentId, (isNew ? " new" : ""), branchName, shortSha(ctx->getCommitId()));
+  ctx->rebase();
   return std::move(ctx);
 }
 
@@ -106,36 +113,41 @@ Result<Context> agent(
       return ctx;
   
     while (sGit.ok() && !!ctx && currentCommitNum++ < numCommits) {
-      // std::scoped_lock serialize(criticalsection);
-      criticalsection.lock();
-      ctx->rebase();
       GlycemicIt::CommitProps props(ctx->getCommitId(), sGit);
-      for (const auto &action : actionGenerator(s, numActions, sGit))
-      {
-        ctx = action->applyGit(std::move(ctx), props.elems_, agentId);
-      }
-      if (!props.elems_.empty())
-      {
-        ctx = std::move(ctx)
-                  .and_then(
-                      commit(
-                          "agent "s + agentId,
-                          "agent@test.one",
-                          std::format("Commit {}:{}", agentId, currentCommitNum)));
-      criticalsection.unlock();
 
-        if (!ctx)
-        {
-          sGit.nok();
-        }
-        else
-        {
-          spdlog::info("({}) COMMIT #{} [{} {}] ", agentId, currentCommitNum, ctx->ref_, shortSha(ctx->getCommitId()));
-          sGit.addCommit(ctx->getCommitId(), std::move(props));
-        }
+      for ( const auto& action : actionGenerator(s, numActions, sGit)) {
+        ctx = action->applyGit(std::move(ctx), props.elems_, agentId );
       }
-      ctx = randomizeBranch(agentId, std::move(ctx), numBranches);
-    }
+      // TOOD: Maybe I want to verify that only in this case it will rollback
+      // 11 GIT_ERROR_OBJECT "failed to create commit: current tip is not the first parent"
+      if (!props.elems_.empty()) {
+        {
+          std::scoped_lock serialize(criticalsection);
+          if(auto isTip = ctx->isTip(); !sGit.isEmpty() && (!isTip || *isTip == false)) {
+            ctx = std::move(ctx).and_then(rollback());
+            spdlog::info("({}) ROLLBACK #{} [{} {}]", agentId, currentCommitNum, ctx->ref_, shortSha(ctx->getCommitId()) );
+            ctx->rebase();
+            --currentCommitNum;
+          } else {
+            ctx = std::move(ctx)
+              .and_then(
+                commit(
+                "agent "s + agentId, 
+                "agent@test.one", 
+                std::format("Commit {}:{}", agentId, currentCommitNum))
+            );
+            if (!!ctx) {
+              spdlog::info("({}) COMMIT #{} [{} {}] ", agentId, currentCommitNum, ctx->ref_, shortSha(ctx->getCommitId()) );
+              sGit.addCommit(ctx->getCommitId(), std::move(props));
+            }
+          }
+        } 
+        if (!ctx) {
+          sGit.nok();
+        }  
+      } 
+    ctx = randomizeBranch(agentId, std::move(ctx), numBranches); 
+  }
 
   return ctx;
 }
@@ -146,6 +158,7 @@ void setLogger(const std::filesystem::path& logPath) noexcept {
   auto glogger = spdlog::basic_logger_mt("grn", logPath);
   glogger->set_pattern("[%H:%M:%S.%f] %=8l [%t] %v");
   glogger->set_level(spdlog::level::info); 
+
   setLogger(glogger); // Library logger
   spdlog::set_default_logger(glogger); 
 }
@@ -170,7 +183,6 @@ void setLogger(const std::filesystem::path& logPath) noexcept {
  * Possible points of failure:
  *  Any of the agents' actions can fail
  *  The end result GIT != GlycemicIt
- * TODO: Add command line arguments for caller control of the variables 
  */
 int main(int argc, char** argv)
 {
@@ -192,7 +204,6 @@ int main(int argc, char** argv)
   app.add_option("-a,--actions", numActions, "Max Number of actions per commit (Default "s + std::to_string(numActions) + ")");
   app.add_option("-d,--depth", maxDirectoryDepth, "Max directory depth (Default " + std::to_string(maxDirectoryDepth) + ")");
   app.add_option("-l,--length", maxFilenameLength, "Max filename length (Default " + std::to_string(maxFilenameLength) + ")");
-  /// TODO: Support rollback option
   CLI11_PARSE(app, argc, argv);
 
   std::filesystem::path repoPath { testbase / "greens" };
@@ -220,7 +231,7 @@ int main(int argc, char** argv)
     auto result = future.get(); // Joins and retrieves result
     if (!result) {
       isError = true;
-      std::cerr << "Failed: " << result.error() << std::endl;
+      std::cerr << "Agent failed: " << result.error() << std::endl;
     }
   }
   if (isError) 
@@ -228,7 +239,7 @@ int main(int argc, char** argv)
 
   try {
     if (!sGit.valid(repoPath))  {
-      std::cout << "Failure. For more details see log file " << logFile << std::endl;
+      std::cerr << "Failure. For more details see log file " << logFile << std::endl;
       return -1;
     } else {
       std::cout << "Success" << std::endl;

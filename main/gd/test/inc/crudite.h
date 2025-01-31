@@ -136,8 +136,8 @@ actionGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git)
 
   // 20 30 10 40
   std::vector<ProbabilityGetter> getters = {
-    {25_percent, Create::get},
-    {25_percent, Update::get},
+    {20_percent, Create::get},
+    {30_percent, Update::get},
     {10_percent, Delete::get},
     {40_percent, Read::get},
   };

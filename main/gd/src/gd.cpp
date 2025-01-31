@@ -92,7 +92,6 @@ namespace {
       bool removed = false;
       std::shared_lock<std::shared_mutex> guard(cacheAccess_);
       if (auto itr{repoCache_.find(repoFullPath)}; itr != repoCache_.end() ) {
-        git_repository_free(itr->second);
         repoCache_.erase(repoFullPath);
         removed = true;
       }
@@ -179,7 +178,8 @@ namespace {
     auto pRepo = sGit.cacheRepo(fullpath, std::move(*repo));
 
     sLogger->debug("Connected to repository {}", fullpath);
-    return gd::Context{pRepo, sHead};
+    auto ctx = gd::Context{pRepo, sHead};
+    return ctx;
   }
 }
 
@@ -369,7 +369,7 @@ void gd::Context::setBranch(const std::string& fullPathRef) noexcept
 
 git_oid const *
 gd::Context::getCommitId() const noexcept {
-  return git_commit_id(tip_.commit_);
+  return tip_.commitId_;
 }
 
 /*******************************************************************************
@@ -378,8 +378,11 @@ gd::Context::getCommitId() const noexcept {
  *******************************************************************************/
 gd::internal::Node::Node(Node&& other) noexcept
 : commit_(std::move(other.commit_)), 
-  root_(std::move(other.root_)) 
-{ }
+  root_(std::move(other.root_)),
+  commitId_(std::move(other.commitId_))
+{ 
+  other.commitId_ = nullptr;
+}
 
 /// @brief Move assignement operator
 /// @param other Moved Node
@@ -387,6 +390,7 @@ gd::internal::Node::Node(Node&& other) noexcept
 gd::internal::Node& gd::internal::Node::operator=(Node&& other) noexcept
 {
   if (this != &other) {
+    commitId_ = std::move(other.commitId_);
     commit_ = std::move(other.commit_);
     root_ = std::move(other.root_);
   }
@@ -404,6 +408,8 @@ gd::internal::Node::init(gd::Context&& ctx) noexcept
   } else {
     ctx.tip_.commit_ = std::move(*commit);
   }
+
+  ctx.tip_.commitId_ = git_commit_id(ctx.tip_.commit_);
     
   if (auto tree = getTreeOfCommit(*ctx.repo_, ctx.tip_.commit_); !tree) {
     return unexpected_err(tree.error());
@@ -431,6 +437,7 @@ gd::internal::Node::update(const gd::Context& ctx, git_oid const* commitId) noex
   if (!tree)
     return unexpected_err(tree.error());
     
+  commitId_ = git_commit_id(*commit);
   commit_ = std::move(*commit);
   root_ = std::move(*tree);
 
@@ -446,6 +453,24 @@ gd::internal::Node::rebase(const gd::Context& ctx) noexcept {
     return unexpected_err(commitId.error());
 
   return update(ctx, *commitId);
+}
+
+Result<git_oid const*>
+gd::internal::Node::tip(const gd::Context& ctx) noexcept {
+  auto commitId = referenceCommit(*ctx.repo_, ctx.ref_);
+  if (!commitId)
+    return unexpected_err(commitId.error());
+
+  return *commitId;
+}
+
+Result<bool>
+gd::internal::Node::isTip(const gd::Context& ctx) noexcept {
+  auto commitId = referenceCommit(*ctx.repo_, ctx.ref_);
+  if (!commitId)
+    return unexpected_err(commitId.error());
+
+  return commitId_ != nullptr && git_oid_cmp(*commitId, commitId_) == 0;
 }
 
 /*******************************************************************************
@@ -466,10 +491,11 @@ gd::cleanRepo(const std::filesystem::path& repoFullPath) noexcept {
 Result<gd::Context>
 gd::selectRepository(const std::filesystem::path& fullpath, const std::string& name) noexcept
 {
-  if (auto repo = sGit.getRepo(fullpath); !!repo)
+  if (auto repo = sGit.getRepo(fullpath); !!repo) {
     return gd::Context(*repo, sHead);
+  }
 
-  if (repoExists(fullpath))
+  if (repoExists(fullpath)) 
     return connectToRepo(fullpath);
 
   return createRepo(fullpath, name);

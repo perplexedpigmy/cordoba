@@ -12,7 +12,7 @@ static const char* criticalIcon = "⛔";
 
 /// @brief git_oid requires Hash function to be used as key in an unordered_map
 struct OidHasher {
-  std::size_t operator()(const git_oid* data) const {
+  std::size_t operator()(git_oid const * data) const {
     std::size_t hash { 0 };
     for (size_t i = 0; i < GIT_OID_RAWSZ; ++i) {
       hash = (hash << 5) - hash + data->id[i];  // hash * 31 + [i]
@@ -87,7 +87,7 @@ class GlycemicIt {
   /// @brief Adds a commit, propeties pair to the git bookkeeping 
   /// @param commitId the commit id in `git_oid` format
   /// @param props the commit props, i.e. parent commit id + file and content list
-  void addCommit(CommitId const commitId, CommitProps&& props) noexcept {
+  void addCommit(CommitId commitId, CommitProps&& props) noexcept {
     std::unique_lock<std::shared_mutex> writeLock(gitData_);
     commits_.insert(std::make_pair(commitId, std::move(props)));
   }
@@ -205,6 +205,7 @@ bool GlycemicIt::valid(const std::filesystem::path& repoPath) const {
 //////////////////////////////////////////
 const GlycemicIt::Elements& 
 GlycemicIt::elemsOf(GlycemicIt::CommitId commitId) const {
+  std::shared_lock<std::shared_mutex> readLock(gitData_);
   auto commit = commits_.find(commitId);
 
   if (commit == commits_.end()) 
@@ -217,6 +218,8 @@ GlycemicIt::elemsOf(GlycemicIt::CommitId commitId) const {
 std::pair<std::string, bool> 
 GlycemicIt::getBranch(int branchNum) noexcept {
   bool newBranch = false;
+  for (const auto& f : branches_) {
+  }
   if (branchNum >= branches_.size()) {
     std::unique_lock<std::shared_mutex> writeLock(gitData_);
     branches_.push_back("brn" + std::to_string(branches_.size()));
@@ -246,7 +249,7 @@ GlycemicIt::CommitProps::CommitProps(GlycemicIt::CommitId parentId, GlycemicIt& 
 :parentCommitId_{parentId} 
 {
     // First commit has no parents
-    if (parentId != 0) {
+    if (parentId != nullptr) {
       std::shared_lock<std::shared_mutex> readLock(git.gitData_);
       try {
       elems_ = git.elemsOf(parentId);

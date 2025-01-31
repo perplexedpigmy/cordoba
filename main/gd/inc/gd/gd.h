@@ -27,23 +27,18 @@
  *       - naive, 10,000 files per directory = ~50files/s    100 files per directory = ~1000/s
  *       - index,
  *       - local caching until commit. 
- * TODO: Convert Error from string -> (errString, errNo, origin)
  *
- * TODO: Support for sharding. 2 years later, what did I mean, what for?
+ * TODO: Support for sharding. 
  * TODO: Missing interface
  *         merge
  *         tag
- * TODO: Error, to keep all elements of git_error (klass)
- * TODO: lift & chain implementation
  * TODO: Tags support
  * TODO: Metadata support (notes)
  * 
  * TODO: Testing, testing and more testing 
  *       test rollback
  *       test multithreading
- * TODO: Split Node, into Node && NodeWithTip or something to that effect. Why??
- *       
- *       
+ * TODO: Split Node, into Node && NodeWithTip or something to that effect. I can't recall why this was intereting
  **/
 namespace gd
 {
@@ -58,7 +53,8 @@ namespace gd
      **/
     struct Node {
 
-      Node() noexcept = default;
+      Node() noexcept
+      :commitId_{nullptr} {}
       Node(Node&& other) noexcept;
       Node& operator=(Node&& other) noexcept;
 
@@ -83,6 +79,23 @@ namespace gd
        **/ 
       Result<void> rebase(const gd::Context& ctx) noexcept;
 
+      /**
+      /* @brief returns the tip of reference
+       * @param ctx The old context, with valid repository/reference 
+      /* @return On success a git_oid of the reference's tip, otherwise and error
+      **/
+      Result<git_oid const*> tip(const gd::Context& ctx) noexcept;
+
+      /**
+       * @brief tests if the context is at the tip of the reference
+       * @param ctx The old context, with valid repository/reference 
+       * @return true if tip last of reference, false otherwise, and an Error on Error
+       */
+      Result<bool> isTip(const gd::Context& ctx) noexcept;
+
+      /// @brief can be calculated from commit_, but cached for convinience
+      git_oid const * commitId_;
+
       /// @brief The commit used
       commit_t commit_;
 
@@ -106,7 +119,9 @@ namespace gd
 
     Context(repository_t* repo,
             const std::string& branch = defaultRef ) noexcept
-    : repo_(repo), ref_(branch) {}
+    : repo_(repo), ref_(branch) { 
+      if (repo) rebase(); 
+    }
 
     Context(Context&& other ) noexcept  = default;
     Context& operator=(Context&& other) noexcept  = default;
@@ -120,6 +135,8 @@ namespace gd
 
     Result<void> update(git_oid const * commitId) noexcept { return tip_.update(*this, commitId); }
     Result<void> rebase() noexcept { return tip_.rebase(*this); }
+    Result<git_oid const *> tip() noexcept { return tip_.tip(*this); }
+    Result<bool> isTip() noexcept { return tip_.isTip(*this); }
 
   };
 
@@ -209,6 +226,31 @@ namespace gd
       return ni::mv(std::move(ctx), fullpath, toFullpath);
     };
   }
+
+  /// @brief An idiomatic way to discover the values of the context, for applications interested in it
+  /// @param f a function with argument gd::Context i.e. [](gd::Context&&) {}
+  /// @return returns the context as is
+  template<typename F>
+  inline auto process(F&& f) noexcept
+  {
+    return [f](Context&& ctx) -> Result<Context> {
+      f(ctx);
+      return  std::move(ctx);
+    };
+  }
+
+  /// @brief An idiomatic way to access read content while keeping the call chain
+  /// @param f a function with argument gd::ReadContext i.e. [](gd::ReadContext&&) {}
+  /// @return returns the context as is
+  template<typename F>
+  inline auto processContent(F&& f) noexcept
+  {
+    return [f](ReadContext&& ctx) -> Result<ReadContext> {
+      f(ctx.content());
+      return std::move(ctx);
+    };
+  }
+
 
   /// @brief Adds a set of files and their contents 
   /// @param filesAndContents fullpath, content pair set

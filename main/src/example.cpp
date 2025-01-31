@@ -8,139 +8,198 @@
 
 #include <openssl/sha.h>
 #include "generator.h"
+#include "out.h"
+
 #include <spdlog/sinks/basic_file_sink.h>
 
 using namespace gd;
 using namespace gd::shorthand; // add >>, || chaining 
 using namespace std;
 
-inline void assertError(char const * msg, const string& err)
-{
-  throw runtime_error(""s + msg + "\n   " +  err );
-}
 
-void sanityCheck()
-{
-  std::cout << "Basic interface tests " << endl;
-  const string repoPath = "/tmp/test/sanityCheck";
-  cleanRepo(repoPath);
+static const filesystem::path repoPath = "/tmp/test/examples";
 
-  try {
-    auto logger = spdlog::basic_logger_mt("interace", "/tmp/test/logs/sanityCheck.log");
-    setLogger(logger);
-
-    auto ctx = selectRepository(repoPath)
-      >> add("README", "bla bla\n")
-      >> commit("mno", "mno@xmousse.com.org", "...\n")
-      || [](const auto& err) { assertError("Failed to create first commit", err); };
-
-    ctx 
-      >> createBranch("KenAndRitchie")
-      >> createBranch("StevenPinker")
-      >> createBranch("AIReboot")
-      || [](const auto& err) { assertError("Create branches", err); };
-
-    ctx    // Implicitly master branch (last context)
-      >> add("src/content/new.txt", "contentssssss")
-      >> add("src/content/sub/more.txt", "check check")
-      >> commit("mno", "mno@xmousse.com.org", "comment is long")
-      ||  [](const auto& err) { assertError("Updating master", err); };
-
-   ctx 
->> selectBranch("KenAndRitchie")
-      >> add("src/dev/c/hello.c", "#include <hello.h>")
-      >> add("src/dev/include/hello.h", "#pragma once\n")
-      >> commit("mno", "mno@xmousse.com.org", "Ken and Ritchie's inventory")
-      || [](const auto& err) { assertError("Updating branch Ken&Ritichie", err); };
-
-   ctx 
-      >> selectBranch("StevenPinker")
-      >> add("the/blank/slate", "If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review")
-      >> add("the/staff/of/thought", "Powerful and gripping")
-      >> add("Enlightement now", "THE TOP TEN SUNDAY TIMES BESTSELLER")
-      >> commit("mno", "mno@xmousse.com.org", "comment is long")
-      || [](const auto& err) { assertError("Updating branch StevenPinker", err); };
-
-    ctx // Implicitly use previous used branch 'two'
-      >> read("the/blank/slate")
-      || [](const auto& err) { assertError("Reading file", err); };
-
-    ctx >> selectBranch("KenAndRitchie")
-      >> del("src/dev/include/hello.h")
-      >> mv("src/dev/c/hello.c", "src/dev/cpp/hello.cpp")
-      >> commit("mno", "mno@xmousse.com.org", "remove header file")
-      || [](const auto& err) { assertError("Unable to remove or move files", err); };
-
-    // std::cout << "The blank Slate review: " << *content << std::endl;
-  } catch(const runtime_error& e)  { cout << "Error:" << e.what() << endl; }
-  std::cout << "The end" << std::endl;
-}
-
-// Output
-//                                           Naive(1) - Per file write      Collect - per dir write
-//                                          -----------------------------   ---------------------------
-// Commiting :      1 Files / 13 domains :: 0.00869548s 115.002 files/s :: 0.00413757s 241.688 files/s
-// Commiting :     10 Files / 13 domains ::  0.0909334s 109.971 files/s ::  0.0329744s 303.265 files/s
-// Commiting :    100 Files / 13 domains ::       1.11s  90.144 files/s ::   0.203213s 492.094 files/s
-// Commiting :  1,000 Files / 13 domains ::      37.94s  26.358 files/s ::    1.92068s 520.649 files/s
-// Commiting : 10,000 Files / 13 domains ::   3,259.63s   3.679 files/s ::    15.6622s 638.479 files/s
-//
-// (1) Naively add one file at a time, updating the entire tree up to root
-// (2) Collect all elements, on commit, update each directory once
-//     Collection is a std::map Path -> Vector<Updates> 
-//     std::map collects effected directorys grown is O(logN)
-//     std::vector capacity is dynmaically growing, no hint provided, growth is linear O(N)
-//     Improvement can be moving to std::unordered_map (Constant time) + sorting O(logN)
-void speedTest()
-{
-  auto logger = spdlog::basic_logger_mt("speed logger", "/tmp/test/logs/speedTest.log");
+/// Uses SPDLogger https://github.com/gabime/spdlog, if not explicitly set, logging is not captured
+/// For configuration see SPDLog documentation
+void setLogger() {
+  auto logger = spdlog::basic_logger_mt("examples", "/tmp/test/logs/examples.log");
+  logger->set_level(spdlog::level::trace); 
   setLogger(logger);
-
-  std::cout << "\n\nWrite speed test" << endl;
-  constexpr size_t numFilesPerDomain(100);
-  constexpr size_t maxFileSize(1000);
-
-  const string repoPath = "/tmp/test/speedTest";
-  std::filesystem::remove_all(repoPath);
-
-  //  Add 12 (domains) x numFilesPerDomain files in one commit
-  //  Each domain resides in its own directory.
-  //  Naieve implementation slows down exponantionally with growth of number of files !!!
-  const std::vector<std::string> domains{ "AB", "AS", "UT", "AC", "RT", "TZ", "AD", "AZ", "PT", "RS", "PT", "TV", "VZ"};
-
-  /// TODO: Consolidate context propagation, and tip tracking
-  ////      Branch creation can be performed from tip_.commit_t
-  auto dbx = selectRepository(repoPath);
-  for (size_t numFiles = 1; numFiles <= 10'000; numFiles *= 10)
-  {
-    auto start = chrono::steady_clock::now();
-
-    for (const auto& domain :  domains)
-    {
-      for (const auto& [id, content] : hsh::elements(numFiles,  maxFileSize))
-      {
-        dbx >> add( domain + "/" + id, content);
-      }
-    }
-
-    dbx >> commit("mno", "mno@xmousse.com.org", "timing commit\n")
-        || [](const auto& err) { assertError("Commit failed", err); };
-
-    auto end = chrono::steady_clock::now();
-    auto durationMs = chrono::duration <double, micro> (end - start).count();
-    auto durationS = chrono::duration <double> (end - start).count();
-
-    std::cout << "Commiting : " << right << setw(5) << numFiles  << " Files for " <<  domains.size() << " domains :: "
-      <<  setw(12) <<  durationS << "s   "
-      <<  setw(10) << (numFiles / durationS) << " files/s" << endl;
-
-    dbx >> selectBranch("main"); // Reset the tip to HEAD
-  }
 }
+
+/// Cleaning the repository is usefull on rare occaisons like testing, but is unlikely to be used in any production code
+/// Unless one wants to start the repository from scratch on evey run that is, so use sagaciously.
+void cleanRepository() {
+  cleanRepo(repoPath);
+}
+
+/// Getting a context requires selecting a repository (Which will create or open a repositiry in a given path),
+/// once getting a context files can be `add`ed and transacted (i.e `commit`ted)
+///  operator >> chains different serially consecutive commands, if any command in the chain fails, the context will 
+///  contain an error, error can  checked directly 
+void addElementToDefaultBranch() {
+  auto ctx = selectRepository(repoPath)
+    >> add("README", "not\n")
+    >> commit("test", "test@here.org", "feat: add README");
+
+    if (!ctx) {
+      cerr << "Error: " << ctx.error()._msg << std::endl;
+    } else {
+      cout << "Introduced first commit" << std::endl;
+    }
+    // OUTPUT:
+    //
+    // Introduced first commit
+}
+
+/// Errors can be also captured via a dedicated function/lambda
+void addAnotherElementToDefaultBranch() {
+  auto ctx = selectRepository(repoPath)
+    >> commit("test", "test@here.org", "fix: add a license")
+    || [](const auto& err) { std::cerr  << "Failed to commit: " <<  err << std::endl; };
+
+    // OUTPUT:
+    //
+    // Failed to commit: Nothing to commit
+}
+
+/// Branch creation doesn't change the current context, for that use `selectBranch`, thusly, it's possible to branch 
+/// from current context multiple branches, chaining any other command after branching is also supported.  
+void createSomeBranches() {
+  auto ctx = selectRepository(repoPath)
+    >> createBranch("KenAndRitchie")
+    >> createBranch("StevenPinker")
+    >> createBranch("AIReboot")
+    || [](const auto& err) { cout << "Failed to create branches: " << err << std::endl; };
+
+    // OUTPUT:
+    //
+}
+
+/// After branch selection, it's possible to chain updating commands, `add`ing is not just a 'create file` but rather a `create revision`
+/// that's why it's possible to keep adding the same file with different content, creating another version of it.
+void addElementsOnBranch() {
+  auto ctx = selectRepository(repoPath)
+    >> selectBranch("StevenPinker")
+    >> add("the/blank/slate", "If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review")
+    >> add("the/staff/of/thought", "Powerful and gripping")
+    >> add("Enlightement now", "THE TOP FIVE SUNDAY TIMES BESTSELLER")
+    >> commit("test", "test@here.org", "add reviews")
+
+    >> add("Enlightement now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
+    >> commit("test", "test@here.org", "correct review")
+    || [](const auto& err) { std::cout << "Failed updating branch StevenPinker: " << err << std::endl; };
+}
+
+/// A Commit is naturally equivalent to a DB transaction, and it's counterpart is of course a `rollback`
+/// Moreover, the chaining can be spread over multiple statements allowing additinal introduction of addtional logic.
+void rollbackUnwantedChanges() {
+  auto ctx = selectRepository(repoPath) 
+    >> selectBranch("KenAndRitchie");
+
+  if (!!ctx) 
+    cout << "Successful switch to KenAndRitchie" << std::endl;
+
+  ctx 
+    >> add("src/dev/c/hello.c", "#include <hello.h>")
+    >> add("src/dev/include/hello.h", "#pragma once\n")
+    >> rollback()  // Zig is king baby, zig is king
+    || [](const auto& err) { cout << "Updating branch Ken&Ritichie: " <<  err << endl; };
+
+    // OUTPUT:
+    //
+    // Successful switch to KenAndRitchie
+}
+
+/// There are multiple ways to read and process the content 
+void readingContent() {
+  auto ctx = selectRepository(repoPath)
+    >> selectBranch("StevenPinker")
+    >> read("the/blank/slate");
+
+    // Explicitly use the read content.
+    if (!!ctx)
+      cout << "The blank Slate: " << ctx->content() << endl;
+
+    // Or via a closure/function
+    ctx 
+      >> read("Enlightement now")
+      >> processContent([](auto content) { cout << "Enlightment NOW: " << content << endl;});
+
+    // On failure of course the call chain will be short cut to the error capture.
+    ctx 
+      >> read("SomethingThatDoesntExist")
+      >> processContent([](auto content) { cout << "Bwahahaha: " << content << endl;})
+      || [](const auto& err) { cout << "Oops: " <<  err << endl; };
+
+    // OUTPUT:
+    //
+    // The blank Slate: If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review
+    // Enlightment NOW: THE TOP **TEN** SUNDAY TIMES BESTSELLER
+    // Oops: the path 'SomethingThatDoesntExist' does not exist in the given tree
+}
+
+// Let's create some commits over 2 branches
+//
+//         C---E---G topic
+//        /
+//   A---B---D---F   main
+//
+// Important:
+// 1.  The branch is only created after the first commit, In git branching is possible only when the DAG is not empty
+// 2.  There are no empty commits, something has to change to introduce a commit
+// 3.  `createBranch` is does not switch to the created branch, use selectBrach for that.
+
+void createTree() {
+  const string main = "main";   // Default branch is main
+  const string topic = "topic";
+
+  auto ctx = selectRepository(repoPath)
+    >> add("file", "content")   
+    >> commit("test", "test@here.org", "A")
+    >> createBranch(topic)     // After creating the branch we are still on `main`, branching is only possible after first commit
+
+    >> del("file")             // Deleting is a sufficient change for a commit
+    >> commit("test", "test@here.org", "B")
+
+    >> selectBranch(topic)
+    >> add("file", "content")   
+    >> commit("test", "test@here.org", "C")
+    
+    >> selectBranch(main)
+    >> add("README", "New update")   
+    >> commit("test", "test@here.org", "D")
+
+    >> selectBranch(topic)
+    >> add("file", "Some more info")   
+    >> commit("test", "test@here.org", "E")
+
+    >> selectBranch(main)
+    >> add("new", "It is")   
+    >> commit("test", "test@here.org", "F")
+
+    >> selectBranch(topic)
+    >> del("file")
+    >> commit("test", "test@here.org", "G")
+      || [](const auto& err) { cout << "Failed tree creation: " <<  err << endl; };
+
+    // OUTPUT:
+    //
+}
+
 
 int main() {
 
-  sanityCheck();
-  speedTest();
+  setLogger();
+  cleanRepository();
+
+  addElementToDefaultBranch();
+  addAnotherElementToDefaultBranch();
+  createSomeBranches();
+  addElementsOnBranch();
+  rollbackUnwantedChanges();
+  readingContent();
+  createTree();
+
   return 0;
 }

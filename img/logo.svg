@@ -1,0 +1,30 @@
+<svg viewBox="50 90 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect x="50" y="90" width="200" height="200" fill="#FFFFFF"/>
+  
+  <!-- Stylized Moorish Arch - representing both historical Cordoba and database structure -->
+  <path d="M60,280 
+           Q150,100 240,280" 
+        fill="none" 
+        stroke="#F59E0B" 
+        stroke-width="20"/>
+  
+  <!-- Nested arch representing versioning -->
+  <path d="M90,280 
+           Q150,140 210,280" 
+        fill="none" 
+        stroke="#FBBF24" 
+        stroke-width="15"/>
+  
+  <!-- Inner arch representing data -->
+  <path d="M120,280 
+           Q150,180 180,280" 
+        fill="none" 
+        stroke="#FCD34D" 
+        stroke-width="10"/>
+  
+  <!-- Circular node elements -->
+  <circle cx="150" cy="140" r="15" fill="#D97706"/>
+  <circle cx="150" cy="180" r="12" fill="#F59E0B"/>
+  <circle cx="150" cy="220" r="10" fill="#FBBF24"/>
+</svg>

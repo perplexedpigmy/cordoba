@@ -22,13 +22,13 @@ inline void assertError(char const * msg, const string& err)
 // using different commit sizes 
 //
 // Output
-//                                           Naive(1) - Per file write      Collect - per dir write
-//                                          -----------------------------   ---------------------------
-// Commiting :      1 Files / 13 domains :: 0.00869548s 115.002 files/s :: 0.00413757s 241.688 files/s
-// Commiting :     10 Files / 13 domains ::  0.0909334s 109.971 files/s ::  0.0329744s 303.265 files/s
-// Commiting :    100 Files / 13 domains ::       1.11s  90.144 files/s ::   0.203213s 492.094 files/s
-// Commiting :  1,000 Files / 13 domains ::      37.94s  26.358 files/s ::    1.92068s 520.649 files/s
-// Commiting : 10,000 Files / 13 domains ::   3,259.63s   3.679 files/s ::    15.6622s 638.479 files/s
+//                                       Naive(1) - Per file write       Collect(deb) per dir write   Collect(rel) per dir write
+//                                      -----------------------------   ---------------------------   ---------------------------
+// Commiting :      1 Files / 13 dirs :: 0.00869548s 115.002 files/s :: 0.00413757s 241.688 files/s :: 0.00499475s 200.21 files/s
+// Commiting :     10 Files / 13 dirs :: 0.0909334s  109.971 files/s :: 0.0329744s  303.265 files/s :: 0.0227195s  440.15 files/s
+// Commiting :    100 Files / 13 dirs :: 1.11s        90.144 files/s :: 0.203213s   492.094 files/s :: 0.146281s   683.616 files/s
+// Commiting :  1,000 Files / 13 dirs :: 37.94s       26.358 files/s :: 1.92068s    520.649 files/s :: 1.30155s    768.315 files/s
+// Commiting : 10,000 Files / 13 dirs :: 3,259.63s     3.679 files/s :: 15.6622s    638.479 files/s :: 10.3923s    962.248 files/s
 //
 // (1) Naively add one file at a time, updating the entire tree up to root
 // (2) Collect all elements, on commit, update each directory once

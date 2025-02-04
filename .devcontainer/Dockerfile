@@ -29,35 +29,50 @@ RUN \
   && touch /cmdhistory/.bash_history \
   && chown -R $USERNAME /cmdhistory/.bash_history \
   && echo $SNIPPET >> /home/$USERNAME/.bashrc \
+  # 
+  # Docker 
+  && apt-get -qq update \
+  && apt-get install -y ca-certificates curl \
+  && install -m 0755 -d /etc/apt/keyrings \
+  && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+  && chmod a+r /etc/apt/keyrings/docker.asc \
+  # Add the repository to Apt sources:
+  && echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null \
   #
   # Install required packages
   && apt-get -qq update \
   && apt-get -qq install -y \
-     sudo \
-     wget \ 
-     git \
-     libopencv-dev \
-     gcc-14 \
-     g++-14 \
-     gdb \
-     ninja-build \
-     parallel \
-     build-essential \
-     doxygen \
-     cmake \
-     make \
-     file \
-     binutils \
-     libssl-dev \
-     libboost-system-dev \
-     libcurl4-openssl-dev \
-     zlib1g-dev \
+    sudo \
+    wget \ 
+    git \
+    libopencv-dev \
+    gcc-14 \
+    g++-14 \
+    gdb \
+    ninja-build \
+    parallel \
+    build-essential \
+    doxygen \
+    cmake \
+    make \
+    file \
+    binutils \
+    libssl-dev \
+    libboost-system-dev \
+    libcurl4-openssl-dev \
+    docker-ce-cli \
   # 
   # Configure c++ alternatives 
   && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
   && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 \
   && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 90 \
   && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 90 \
+  #
+  # Add user to group of /var/run/docker.sock
+  && usermod -aG systemd-network ${USERNAME} \
   #
   # Insatll the bin utilit
   && sudo -i -u $USERNAME mkdir -p ${BIN_EXE_DIR} \
@@ -74,6 +89,7 @@ RUN \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/mikefarah/yq  -s yq_linux_amd64" \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/direnv/direnv"  \
   && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/BurntSushi/ripgrep -s ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz:ripgrep-14.1.1-x86_64-unknown-linux-musl/rg" \
+  && sudo -i -u $USERNAME bash -c "BIN_EXE_DIR=${BIN_EXE_DIR} ${BIN_EXE_DIR}/bin install github.com/nektos/act -s act:act" \
   #
   # Add sudo permissions to user
   && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \

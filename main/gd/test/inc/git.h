@@ -101,7 +101,7 @@ class GlycemicIt {
   /// @param repoPath A full path to the git's repository directory
   /// @return True if the two contents match, otherwise false
   /// Precondition, git_libgit2_init() was already executed, this is supposed to be true
-  /// when the gitdb was already accessed.
+  /// when cordoba was already accessed.
   bool valid(const std::filesystem::path& repoPath) const; 
 
   /// @brief Retrieves the elements of a commit

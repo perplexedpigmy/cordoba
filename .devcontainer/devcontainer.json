@@ -29,13 +29,15 @@
 				"oderwat.indent-rainbow",
 				"Cardinal90.multi-cursor-case-preserve",
 				"Gruntfuggly.todo-tree",
-				"WakaTime.vscode-wakatime"
+				"WakaTime.vscode-wakatime",
+				"SanjulaGanepola.github-local-actions"
 			]
 		}
 	},  
 	"containerUser": "lynx",
 	"mounts": [
 		// command history is kept in .devcontainer/.bashrc file
-		"source=./.devcontainer,target=/cmdhistory,type=bind"
-	],
+		"source=./.devcontainer,target=/cmdhistory,type=bind",
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+	]
 }

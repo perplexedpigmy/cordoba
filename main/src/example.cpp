@@ -27,13 +27,13 @@ void setLogger() {
   setLogger(logger);
 }
 
-/// Cleaning the repository is usefull on rare occaisons like testing, but is unlikely to be used in any production code
-/// Unless one wants to start the repository from scratch on evey run that is, so use sagaciously.
+/// Cleaning the repository is usefull on rare occasions like testing, but is unlikely to be used in any production code
+/// Unless one wants to start the repository from scratch on every run that is, so use sagaciously.
 void cleanRepository() {
   cleanRepo(repoPath);
 }
 
-/// Getting a context requires selecting a repository (Which will create or open a repositiry in a given path),
+/// Getting a context requires selecting a repository (Which will create or open a repository in a given path),
 /// once getting a context files can be `add`ed and transacted (i.e `commit`ted)
 ///  operator >> chains different serially consecutive commands, if any command in the chain fails, the context will 
 ///  contain an error, error can  checked directly 
@@ -83,16 +83,16 @@ void addElementsOnBranch() {
     >> selectBranch("StevenPinker")
     >> add("the/blank/slate", "If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review")
     >> add("the/staff/of/thought", "Powerful and gripping")
-    >> add("Enlightement now", "THE TOP FIVE SUNDAY TIMES BESTSELLER")
+    >> add("Enlightenment now", "THE TOP FIVE SUNDAY TIMES BESTSELLER")
     >> commit("test", "test@here.org", "add reviews")
 
-    >> add("Enlightement now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
+    >> add("Enlightenment now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
     >> commit("test", "test@here.org", "correct review")
     || [](const auto& err) { std::cout << "Failed updating branch StevenPinker: " << err << std::endl; };
 }
 
 /// A Commit is naturally equivalent to a DB transaction, and it's counterpart is of course a `rollback`
-/// Moreover, the chaining can be spread over multiple statements allowing additinal introduction of addtional logic.
+/// Moreover, the chaining can be spread over multiple statements allowing additional introduction of additional logic.
 void rollbackUnwantedChanges() {
   auto ctx = selectRepository(repoPath) 
     >> selectBranch("KenAndRitchie");
@@ -123,8 +123,8 @@ void readingContent() {
 
     // Or via a closure/function
     ctx 
-      >> read("Enlightement now")
-      >> processContent([](auto content) { cout << "Enlightment NOW: " << content << endl;});
+      >> read("Enlightenment now")
+      >> processContent([](auto content) { cout << "Enlightenment NOW: " << content << endl;});
 
     // On failure of course the call chain will be short cut to the error capture.
     ctx 
@@ -135,7 +135,7 @@ void readingContent() {
     // OUTPUT:
     //
     // The blank Slate: If you think the nature-nurture debate has been resolved, you are wrong ... this book is required reading ― Literary Review
-    // Enlightment NOW: THE TOP **TEN** SUNDAY TIMES BESTSELLER
+    // Enlightenment NOW: THE TOP **TEN** SUNDAY TIMES BESTSELLER
     // Oops: the path 'SomethingThatDoesntExist' does not exist in the given tree
 }
 

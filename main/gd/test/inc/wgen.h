@@ -10,8 +10,8 @@
 #include <ranges>
 #include <filesystem>
 
-/// @brief  Adapataion from syllabary  https://github.com/arapelle/arba-wgen/blob/master/include/arba/wgen/syllabary.hpp
-/// Package doesn't work trivially with CPM for installtion, fast just to have the code localy than adapt it.
+/// @brief  Adaptation from syllabary  https://github.com/arapelle/arba-wgen/blob/master/include/arba/wgen/syllabary.hpp
+/// Package doesn't work trivially with CPM for installation, fast just to have the code locally than adapt it.
 
 namespace wgen 
 {
@@ -40,7 +40,7 @@ namespace wgen
     std::string random_sentence(int max_words) const noexcept;
     std::string random_paragraph(int max_num_sentences) const noexcept;
     std::string random_content(int num_paragraphs = 10) const noexcept;
-    std::filesystem::path random_filename(int depeth = 10) const noexcept;
+    std::filesystem::path random_filename(int depth = 10) const noexcept;
     std::filesystem::path random_unique_filename() const noexcept;
 
     inline std::string random_name(unsigned word_length) const { return random_word(word_length, Format::Name); }
@@ -139,7 +139,7 @@ namespace wgen
     return word;
   }
 
-  // A setence is a collection of words that start with a name and ends with a point 
+  // A sentence is a collection of words that start with a name and ends with a point 
   std::string syllabary::random_sentence(int max_words) const noexcept {
     auto sentence = random_word(10, Format::Name);
     auto num_words = std::experimental::randint(2, max_words);
@@ -154,7 +154,7 @@ namespace wgen
   std::string syllabary::random_paragraph(int max_sentences = 10) const noexcept {
     auto num_sentences = std::experimental::randint(2, max_sentences);
 
-    /// Ranges at least in c++20 is a disapointment, there is no way to do map -> join, a basic use case.
+    /// Ranges at least in c++20 is a disappointment, there is no way to do map -> join, a basic use case.
     std::string paragraph;
     for (auto _: std::views::iota(0, num_sentences)) {
       paragraph += random_sentence(10);

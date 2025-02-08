@@ -1,4 +1,4 @@
-name: gitdb CI 
+name: CI 
 
 on:
   push:

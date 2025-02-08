@@ -11,7 +11,7 @@
 using namespace gd;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Crudité - French for vegtables slices added to the meal, just like a db CRUD they are the basis of healthy nutrition
+// Crudité - French for vegetables slices added to the meal, just like a db CRUD they are the basis of healthy nutrition
 // This class has the honor of abstracting the basis for all DB operations starting with
 // CRUD - Create, Read, Update and Delete
 class Crudité {
@@ -30,7 +30,7 @@ class Getter : public Crudité {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Creates a new file with content, filename and content are randomally generated
+/// @brief Creates a new file with content, filename and content are randomly generated
 class Create : public Getter<Create> {
   std::filesystem::path name_;
   std::string content_;
@@ -47,7 +47,7 @@ public:
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Udpates existing files in the current context, files is chosen randommaly and so is the generated content
+/// @brief Updates existing files in the current context, files is chosen randomly and so is the generated content
 class Update : public Getter<Update> {
   std::string content_;
 
@@ -70,7 +70,7 @@ public:
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Randomally deletes a file from context
+/// @brief Randomly deletes a file from context
 class Delete : public Getter<Delete> {
   std::string content_;
 
@@ -85,14 +85,8 @@ public:
     std::filesystem::path name = elems[delIdx].first;
       
     spdlog::info("({}) [{} {}] DELETE {}", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name);
-    // std::cout << "Before " << elems.size() << " Removing " << name << std::endl;
-    // for (const auto& [name, _] : elems) 
-    //   std::cout << name << std::endl;
     elems.erase( elems.begin() + delIdx);
 
-    // std::cout << "After " << elems.size() << std::endl;
-    // for (const auto& [name, _] : elems) 
-    //   std::cout << name << std::endl;
     return std::move(ctx).and_then(del(name));
   }
 };
@@ -123,14 +117,14 @@ constexpr double operator"" _percent(long double val) { return val / 100.0; }
 
 /////////////////////////////////////////////////////////////
 /// @brief Generates a stream of actions where the last is a commit
-/// @param numActions max num actions, where at lesat one as Create/Update or Delete and the last one is a Commit 
+/// @param numActions max num actions, where at least one as Create/Update or Delete and the last one is a Commit 
 /// @return a Generator that yields up to `numAction` Actions
-/// Each Action has a certain hardcoded probability assigned to it, that could change in the future if probablility testing 
+/// Each Action has a certain hardcoded probability assigned to it, that could change in the future if probability testing 
 /// is required (Maybe some problems are more frequent in different action salad ratio??)
 ///
 /// NOTE: First action of all time is always a CREATE
 generator<std::unique_ptr<Crudité>> 
-actionGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git) noexcept {
+opGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git) noexcept {
   using Getter = std::unique_ptr<Crudité>(*)(const wgen::syllabary&) noexcept;
   using ProbabilityGetter= std::pair<double, Getter>;
 

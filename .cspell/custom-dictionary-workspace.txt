@@ -1,0 +1,27 @@
+# Custom Dictionary Words
+APPNAME
+catchorg
+cerr
+cout
+Crudité
+endforeach
+endfunction
+endl
+fcoroutines
+frecord
+gabime
+glogger
+Glycemic
+libgit
+Makefiles
+objcopy
+randint
+RAWSZ
+rdoba
+readelf
+Ritchie
+SOVERSION
+spdlog
+SRCS
+stdc
+wgen

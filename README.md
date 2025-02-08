@@ -324,7 +324,7 @@ The validation itself against the git repository, at least for these numbers, do
 
 The `greens` utility helped us verify that most importantly, the result of competing agents introducing data to the repository is correct and valid, but it also shows that, merging and conflicts notwithstanding, it scales predictably and well. also >3000 ops/s on a medium tier laptop is more than what I expected, to be honest.
 
-## Intreating future development
+## Future development
 
 C⊕rdoba may be enough for the original requirements, but it's not nearly as feature full like Dolt, some of the features are trivial to implement with a git backend, others, like queries and schema support, may have to perform some serious tradeoff juggling, but these features may boost the use cases of the library.
 

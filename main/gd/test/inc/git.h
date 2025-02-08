@@ -6,8 +6,8 @@
 #include <shared_mutex>
 
 
-static const char* validIcon = "✅";
-static const char* invalidIcon = "❌";
+static const char* validIcon    = "✅";
+static const char* invalidIcon  = "❌";
 static const char* criticalIcon = "⛔";
 
 /// @brief git_oid requires Hash function to be used as key in an unordered_map
@@ -21,7 +21,7 @@ struct OidHasher {
   }
 };
 
-/// @brief A Thread safe structure to capture the expected git stata
+/// @brief A Thread safe structure to capture the expected git state
 /// 
 class GlycemicIt {
   public:
@@ -46,14 +46,14 @@ class GlycemicIt {
   /// @brief a list of existing branches 
   std::vector<std::string> branches_;
 
-  /// @brief Compares the expected exising elements and their content against the git repository
+  /// @brief Compares the expected existing elements and their content against the git repository
   /// @param repo an open pointer to the test git repository
-  /// @return True if no problem encoutnered and the content matches
+  /// @return True if no problem encountered and the content matches
   bool valid_content(git_repository* repo) const; 
 
-  /// @brief Only tests for the expected branch existance
+  /// @brief Only tests for the expected branch existence
   /// @param repo an open pointer to the test git repository
-  /// @return True if no problem encoutnered and all the expected branches exist
+  /// @return True if no problem encountered and all the expected branches exist
   bool valid_branches(git_repository* repo) const noexcept; 
 
   /// @brief Verifies that removed files in a commit are not accessible in that commit
@@ -84,7 +84,7 @@ class GlycemicIt {
     return commits_.empty();
   }
 
-  /// @brief Adds a commit, propeties pair to the git bookkeeping 
+  /// @brief Adds a commit, properties pair to the git bookkeeping 
   /// @param commitId the commit id in `git_oid` format
   /// @param props the commit props, i.e. parent commit id + file and content list
   void addCommit(CommitId commitId, CommitProps&& props) noexcept {
@@ -254,7 +254,7 @@ GlycemicIt::CommitProps::CommitProps(GlycemicIt::CommitId parentId, GlycemicIt& 
       try {
       elems_ = git.elemsOf(parentId);
       } catch (const std::string& message) {
-        spdlog::error("Unable to read content of parent (Naievely assuming empty parent) commit [{}]: {}", shortSha(parentId), message);
+        spdlog::error("Unable to read content of parent (Naively assuming empty parent) commit [{}]: {}", shortSha(parentId), message);
         git.nok(); /// Unexpected error, shortcut test
       }
     }

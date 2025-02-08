@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
-project(gitdb)
+project(cordoba)
 
 unset(ENV{GIT_DIR})
 
@@ -7,11 +7,13 @@ unset(ENV{GIT_DIR})
 
 # Configuration support
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
-  STRINGS Release Debug
+    STRINGS Release Debug
 )
 
 enable_testing()
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Relegate this configuration to Presets
+# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(main)
 

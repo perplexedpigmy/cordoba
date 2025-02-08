@@ -88,7 +88,10 @@ void addElementsOnBranch() {
 
     >> add("Enlightenment now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
     >> commit("test", "test@here.org", "correct review")
-    || [](const auto& err) { std::cout << "Failed updating branch StevenPinker: " << err << std::endl; };
+    || [](const auto& err) { 
+      spdlog::error("Failed updating branch StevenPinker: {}", static_cast<string>(err));
+      rollback();
+    };
 }
 
 /// A Commit is naturally equivalent to a DB transaction, and it's counterpart is of course a `rollback`
@@ -104,7 +107,7 @@ void rollbackUnwantedChanges() {
     >> add("src/dev/c/hello.c", "#include <hello.h>")
     >> add("src/dev/include/hello.h", "#pragma once\n")
     >> rollback()  // Zig is king baby, zig is king
-    || [](const auto& err) { cout << "Updating branch Ken&Ritichie: " <<  err << endl; };
+    || [](const auto& err) { cout << "Updating branch Ken&Ritchie: " <<  err << endl; };
 
     // OUTPUT:
     //

@@ -1,5 +1,4 @@
 CMAKE_MINIMUM_REquired(VERSION 3.14 FATAL_ERROR)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND NAMES speed          example)
 list(APPEND SRCS  src/timing.cpp src/example.cpp)
@@ -28,21 +27,21 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
   string(APPEND COLLECT_${APP_NAME}_CMD
     "$<IF:$<CONFIG:Release>,"
       "objcopy;--only-keep-debug;$<TARGET_FILE:${APP_NAME}>;$<TARGET_FILE:${APP_NAME}>.sym,"
-      "echo;collecting symobls skipped"
+      "echo;collecting symbols skipped"
     ">")
   
   string(APPEND STRIP_${APP_NAME}_CMD
     "$<IF:$<CONFIG:Release>,"
       "objcopy;--strip-debug;$<TARGET_FILE:${APP_NAME}>;$<TARGET_FILE:${APP_NAME}>.rel,"
-      "echo;stripping symobls skipped"
+      "echo;stripping symbols skipped"
     ">")
   
   add_custom_command(
     TARGET ${APP_NAME} POST_BUILD
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARTY_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMAND "${STRIP_${APP_NAME}_CMD}"
     COMMAND "${COLLECT_CMD}"
-    COMMENT "Separate symobls from executable"
+    COMMENT "Separate symbols from executable"
     # VERBATIM
     COMMAND_EXPAND_LISTS
   )

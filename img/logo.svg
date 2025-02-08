@@ -1,30 +1,23 @@
-<svg viewBox="50 90 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect x="50" y="90" width="200" height="200" fill="#FFFFFF"/>
+<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main circle -->
+  <circle cx="200" cy="200" r="180" fill="#e8d5b5"/>
   
-  <!-- Stylized Moorish Arch - representing both historical Cordoba and database structure -->
-  <path d="M60,280 
-           Q150,100 240,280" 
-        fill="none" 
-        stroke="#F59E0B" 
-        stroke-width="20"/>
+  <!-- Decorative border -->
+  <circle cx="200" cy="200" r="170" fill="none" stroke="#8b4513" stroke-width="4"/>
   
-  <!-- Nested arch representing versioning -->
-  <path d="M90,280 
-           Q150,140 210,280" 
-        fill="none" 
-        stroke="#FBBF24" 
-        stroke-width="15"/>
+  <!-- Moorish arch pattern -->
+  <path d="M 100 280 Q 200 100 300 280" fill="#c17f59"/>
+  <path d="M 120 260 Q 200 120 280 260" fill="#f4e4bc"/>
   
-  <!-- Inner arch representing data -->
-  <path d="M120,280 
-           Q150,180 180,280" 
-        fill="none" 
-        stroke="#FCD34D" 
-        stroke-width="10"/>
+  <!-- Inner arch details -->
+  <path d="M 140 240 Q 200 140 260 240" fill="none" stroke="#8b4513" stroke-width="3"/>
   
-  <!-- Circular node elements -->
-  <circle cx="150" cy="140" r="15" fill="#D97706"/>
-  <circle cx="150" cy="180" r="12" fill="#F59E0B"/>
-  <circle cx="150" cy="220" r="10" fill="#FBBF24"/>
+  <!-- Geometric star pattern -->
+  <path d="M 180 180 L 220 180 L 200 150 Z" fill="#8b4513"/>
+  <path d="M 180 220 L 220 220 L 200 250 Z" fill="#8b4513"/>
+  <path d="M 170 200 L 230 200 L 200 200 M 200 170 L 200 230" stroke="#8b4513" stroke-width="2"/>
+  
+  <!-- Ornamental circles -->
+  <circle cx="200" cy="200" r="15" fill="#8b4513"/>
+  <circle cx="200" cy="200" r="10" fill="#f4e4bc"/>
 </svg>

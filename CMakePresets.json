@@ -20,7 +20,7 @@
       "binaryDir": "${workspaceFolder}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "NO"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
       }
     },
     {

@@ -1,12 +1,20 @@
-# C⊕rdoba: C++ versioned NoSQL Database
+<h1 align=center><code>C⊕rdoba</code></h1>
+<div align=center>
+  <img src=https://img.shields.io/github/v/tag/perplexedpigmy/cordoba?label=Version&pattern=v(.+) alt=version>
+  <a href=https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml>
+    <img src=https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml/badge.svg alt=ci>
+  </a>
+  <img src=https://img.shields.io/github/contributors/perplexedpigmy/cordoba alt=contributors>
+</div>
+
 
 ![C⊕rdoba Logo](img/logo.svg)
 
 C⊕rdoba is a lightweight C++ library for managing versioned NoSQL documents. Like the Spanish city famous for its libraries, C⊕rdoba can store, update and read data, better known in the Andalusian dialect as [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete). Unlike the city, and thanks it being powered by [**libgit2**](https://github.com/libgit2/libgit2) it can practically do anything that git can, either directly via C⊕rdoba or if not yet supported by using the git command line, git daemon etc. i.e. Cloning, branching, remote connection, merging, history view etc.
 
-Transactions a are also a thing, given that they are implicitly supported via commits, thusly, Atomicity and Durability are already provided. To achieve full [ACID](https://en.wikipedia.org/wiki/ACID), Consistency and Isolation can be introduced, but are not currently foreseen.
+Transactions are also a thing, Implicitly supported via commits, they provide Atomicity and Durability. Yet achieving full [ACID](https://en.wikipedia.org/wiki/ACID), Consistency and Isolation need to be introduced.
 
-The library was introduced as a proof of concept for a commercial enterprise solution that required to captured and address non-structured versioned data, with fast reads, decent store time and the ability to manage different versions. It didn't require a schema, fast queries, nor security, features that can be introduced, but are not part of current project. There is not much extra work foreseen in the short term on this library, it can be used as is, or as a window to git's impressive performance as DB backend.
+The library was introduced as a proof of concept for a commercial enterprise solution that required to captured and address non-structured versioned data, with fast reads, decent store time and the ability to manage and access different versions. Schema was not required, nor were fast queries, roles & security, features that can be introduced, but are not part of current codebase. There is not much extra work foreseen in the short term on this library, it can be used as is, or as a window to git's impressive performance as DB backend.
 
 ----
 
@@ -46,7 +54,7 @@ using namespace gd::shorthand; // add >>, || chaining, optional and recommended
 ----
 **why use `gd::shorthand`?**
 
-The library's interface have foregone exceptions, it's using `expected`, also know as (Result in rust, Either in scalla/haskell) a return value that can return either a response or an error, While not native to c++ and missing some constructs that will help bring it to its utmost glory, It's still an interesting concept to use.
+The library's interface have foregone exceptions, it's using `expected`, also know as (Result in rust, Either in scala/haskell) a return value that can return either a response or an error, While not native to c++ and missing some constructs that will help bring it to its utmost glory, It's still an interesting concept to use.
 
 It allows chaining commands. Here is how one could open a database add a file to it and commit it,
 in just one line. Being assured that if an error happens in any of the calls, no harm is done,
@@ -85,11 +93,11 @@ using namespace gd::shorthand;
       };
 ```
 
-So from now on only the shorthand is used.
+So from now on only the shorthand will be used.
 
 ### Creating a branch
 
-Any type of command can be chained as many times as we like as long as there is no error, In the below example 3 branches are forked from the default context. The default context when just opening a repository is the last commit of the `main` branch.
+Any type of command can be chained as many times as we like as long as there was no error, In the below example 3 branches are forked from the default context. The default context when just opening a repository is the last commit of the `main` branch.
 Creating a branch does not change the context to that branch. One will have to use `selectBranch` to achieve that.
 
 *note:*  repoPath is a path to the git repository, if the repository doesn't exist, it will be created.
@@ -113,7 +121,7 @@ The context can be reused as long as it is not containing an Error.
 ```
 
 But it can be also trivially recreated using `selectRepository`, once a repository is created, it's cached
-and it's trivial and fast to re`select` it. However, but it's more to type and less readable.
+making it fast & trivial re`select` it. However,  it's more typing, and less concise.
 
 ```c++
   selectRepository(repoPath)
@@ -124,7 +132,7 @@ and it's trivial and fast to re`select` it. However, but it's more to type and l
 ```
 
 Okay, so we have a repository and we kinda understand branches, what's next?
-While we saw similar example above, this one is on steroids. introducing first commit with an error, to have it be corrected in the consecutive commit, and capturing any potential error that could have happened anywhere in that chain, all in one chain of commands.
+While we saw similar example above, this one is a more complete use case. introducing first commit with an typo, to have it be corrected in the consecutive commit, and capturing any potential error that could have happened anywhere in that chain, all in one chain of commands.
 
 ```c++
   auto ctx = selectRepository(repoPath)
@@ -136,7 +144,10 @@ While we saw similar example above, this one is on steroids. introducing first c
 
     >> add("Enlightenment now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
     >> commit("test", "test@here.org", "correct review")
-    || [](const auto& err) { std::cout << "Failed introducing data" << err << std::endl; };
+    || [](const auto& err) { 
+      spd::error("Failed introducing data {}", static_cast<string>(err) );
+      rollback();
+    };
 ```
 
 Failures can be caught with the `or_else` clause as shown above, but contexts can also be explicitly tested for errors, allowing the introduction of more granular logic in between calls to the database.
@@ -160,10 +171,11 @@ There are 2 way to access read file content
     >> selectBranch("StevenPinker")
     >> read("the/blank/slate");
 
-    if (!!ctx) // Explicitly use the read content. providing context is healthy
+    // Explicitly get from read context.
+    if (!!ctx) 
       cout << "The blank Slate: " << ctx->content() << endl;
 
-    // Using closure to read the content
+    // In chain process by a lambda or a function 
     ctx 
       >> read("Enlightenment NOW")
       >> processContent([](auto content) { 
@@ -174,8 +186,8 @@ There are 2 way to access read file content
       || [](const auto& err) { cout << "Oops: " <<  err << endl; };
 ```
 
-If you need or want to trace the library's internals you can use [spdlog](https://github.com/gabime/spdlog),
-You can configure it as you need and use `setLogger` to tell the library to use it to log what it is doing.
+If you need to trace the library's internals you can use [spdlog](https://github.com/gabime/spdlog),
+You can configure it as you need and use `setLogger` to tell the library to use it to log its internal logging.
 An example for that can be seen in the `greens` utility, where the logger is used for both the library and the using app.
 
 ```c++
@@ -217,7 +229,7 @@ Each commit has N files added to each of 13 directories in one commit, and the e
 | 10        | 13       |  130        | 0.0909       |   140.15   |  
 | 100       | 13       |  1,300      | 1.11         |   90.144   |
 | 1,000     | 13       |  13,000     | 37.94        |   26.358   |
-| 1,0000    | 13       |  130,000    | 3259.63      |   3.6794   |
+| 10,000    | 13       |  130,000    | 3259.63      |   3.6794   |
 
 And indeed the naive implementation scaled poorly with growing number of files.
 
@@ -251,7 +263,7 @@ This is how we execute this commandline utility (It has help if you care to use 
 
 ```sh
 # 5 concurrent agents x 30 Commits x 50 operations = 7,500 Operations = 3,676.47 per second
-time ./build/release/main/gd/greens -g 5 -b 10 -c 30 -a 50
+time ./build/release/main/gd/greens -g 5 -b 10 -c 30 -o 50
 Success
 
 real    0m2.046s
@@ -296,14 +308,17 @@ Again we seem to have come to the same conclusion that the library scales well, 
 This final benchmark can put our minds to rest, we have the means to minimize contention on branches,
 each agent is choosing a branch for each commit randomly, if we increase the branch pool the likelihood of contention is decreased, and we can do that via the `-b` switch, let's do that while keeping constant number of ops.
 Let's also choose 20 agents, the number where we saw the problem start to bud.
+And to boot, we actually can avoid doing the validations(-n) and display the retries percentage.
+Total Ops = 20 agents x 30 commits x 50 Ops
 
-| Num agents | Total Ops     |  Num branches|   real  |  user   |  sys   |   Ops/sec |
-|:----------:|:-------------:|:------------:|:-------:|:-------:|:------:|:-----------:|
-|    20      |  30,000       |  10          | 17.038s | 16.214s | 13.051s|  1,760.77   |
-|    20      |  30,000       |  20          | 11.564s |  9.700s |  9.277s|  2,594.25   |
-|    20      |  30,000       |  40          |  8.162s |  6.537s  | 6.729s|  3,675.56   |
+| Num agents | Total Ops     |  Num branches|   real  |  user   |  sys   |   Ops/sec   | Retries(%) |
+|:----------:|:-------------:|:------------:|:-------:|:-------:|:------:|:-----------:|:----------:|
+|    20      |  30,000       |  10          | 12.186s | 12.398s | 13.186s|  2,461.84   |     3%     |
+|    20      |  30,000       |  20          | 10.357s |  8.669s | 10.708s|  2,896.59   |     1%     |
+|    20      |  30,000       |  40          |  8.718s |  6.980s | 8.791s |  3,441.15   |    <1%     |
 
-We have seen this >=3000 ops per second before, with lower number of ops and agents, This seems to support out above assumption that contention/rollback/retries are responsible for the alleged degradation.
+We have seen this >=3000 ops per second before, with lower number of ops and agents, This seems to support out above assumption that contention/rollback/retries are responsible for the alleged degradation. So does the diminishing retries percentage.
+The validation itself against the git repository, at least for these numbers, doesn't yield much runtime advantage.
 
 #### Summary
 

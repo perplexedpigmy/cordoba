@@ -48,7 +48,7 @@ include(CheckCCompilerFlag)
 
 check_c_compiler_flag(-Wno-incompatible-pointer-types SUPPRESS_INCOMPATIBLE_PT_WARNING )
 
-# keep last error per thread: Error handlng https://github.com/libgit2/libgit2/blob/main/docs/error-handling.md
+# keep last error per thread: Error handling https://github.com/libgit2/libgit2/blob/main/docs/error-handling.md
 target_compile_options(git2internal PRIVATE -DUSE_THREADS=ON)
 
 if (SUPPRESS_INCOMPATIBLE_PT_WARNING)
@@ -95,19 +95,3 @@ foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
   add_test( NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> --success)
 
 endforeach()
-
-# target_include_directories(gdtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-# set_target_properties(gdtest
-#   PROPERTIES
-#     CXX_STANDARD 20
-#     CXX_EXTENSIONS OFF
-#     CXX_STANDARD_REQUIRED ON
-# )
-
-# target_link_libraries(gdtest PRIVATE
-#    Catch2
-#    gd
-#    stdc++fs)
-# target_include_directories(gdtest PRIVATE inc)
-
-# add_test( NAME pathTraverse COMMAND $<TARGET_FILE:gdtest> --success)

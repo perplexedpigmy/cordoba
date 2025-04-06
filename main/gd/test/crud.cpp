@@ -147,7 +147,6 @@ TEST_CASE("Simple CRUD no commit", "[crud] [nocommit]") {
   }
 }
 
-
 TEST_CASE("Simple CRUD one commit", "[crud] [commit]") {
   const static string testRepoPath{"/tmp/test/unit"};
   const string initialFile{"README"};
@@ -393,11 +392,11 @@ TEST_CASE("branch", "[crud] [branch]") {
   const string other = "other";
   const string initialFile{"README"};
   const string initialContent{"test text"};
-  const string otherFile("notimportant");
+  const string otherFile("not.important");
   const string otherFileContent("Boring");
   cleanRepo(testRepoPath);
 
-  SECTION("Read file interduced in parent commit")  {
+  SECTION("Read file introduced in parent commit")  {
       auto result = selectRepository(testRepoPath)
       >> add(initialFile, initialContent)
       >> commit("test", "test@test.com", "commit message 1")
@@ -466,7 +465,7 @@ TEST_CASE("branch", "[crud] [branch]") {
       >> read(otherFile);
 
       REQUIRE(!result == true);
-      REQUIRE("the path 'notimportant' does not exist in the given tree" == result.error()._msg);
+      REQUIRE(std::format("the path '{}' does not exist in the given tree", otherFile) == result.error()._msg);
   }
 }
 
@@ -546,13 +545,36 @@ TEST_CASE("Errors", "[crud] [error]") {
       REQUIRE(errorMsg == "Nothing to commit");
   }
 
-  // Branchihg requires a commit to branch from.
-  SECTION("Impposible to create branch before first commit")  {
+  // Branch-ing requires a commit to branch from.
+  SECTION("Impossible to create branch before first commit")  {
       auto result = selectRepository(testRepoPath)
       >> createBranch("First");
 
       REQUIRE(!result == true);
       REQUIRE(result.error()._msg == "invalid argument: 'commit'");
   }
+}
 
+TEST_CASE("Sanitize", "[sanitize]") {
+
+  const static string testRepoPath{"/tmp/test/unit"};
+  const string initialFile{"README"};
+  const string initialContent{"test text"};
+  cleanRepo(testRepoPath);
+
+  SECTION("create") {
+    SECTION("and_then") {
+      auto result = selectRepository(testRepoPath)
+      .and_then(add(initialFile, initialContent));
+  
+      REQUIRE(!result == false);
+    }
+
+    SECTION("shorthand") {
+      auto result = selectRepository(testRepoPath)
+      >> add(initialFile, initialContent);
+    
+      REQUIRE(!result == false);
+    }
+  }
 }

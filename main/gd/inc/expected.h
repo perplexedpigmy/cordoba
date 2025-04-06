@@ -16,13 +16,33 @@ using expected = tl::expected<T,E>;
 template <typename T>
 using Result = expected<T, gd::Error>;
 
-namespace {
-  std::string strigify_git_error() noexcept {
-    const git_error *err = git_error_last();
-    return std::string("[") + std::to_string(err->klass) + std::string("] ") + err->message;
-  }
 
-  #define unexpected(type, msg) tl::make_unexpected( gd::Error(__FILE__, __LINE__, type, msg) );
-  #define unexpected_err(err) tl::make_unexpected( err );
-  #define unexpected_git tl::make_unexpected( gd::Error(__FILE__, __LINE__, gd::ErrorType::GitError, git_error_last()) );
-}
+  namespace
+  {
+    /// @brief creates unexpected results with user data
+    /// @param type type of the unexpected
+    /// @param msg description
+    /// @param loc source location
+    /// @return the newly created unexpected 
+    tl::unexpected<gd::Error>
+    unexpected(gd::ErrorType type, const std::string&& msg, std::source_location loc = std::source_location::current()) {
+      return tl::make_unexpected( gd::Error(type, std::move(msg), loc));
+    }
+  
+    /// @brief returns an unexpected from result
+    /// @param result The result containing an error
+    /// @return the moved unexpected value 
+    template <typename T>
+    tl::unexpected<gd::Error>
+    unexpected(Result<T>&& result) {
+      return tl::unexpected<gd::Error>(std::move(result.error()));
+    }
+  
+    /// @brief creates an unexpected with git error
+    /// @param loc source location
+    /// @return the newly created unexpected 
+    tl::unexpected<gd::Error>
+    unexpected(std::source_location loc = std::source_location::current()){
+      return tl::make_unexpected(gd::Error(gd::ErrorType::GitError, git_error_last(), loc));
+    }
+  }

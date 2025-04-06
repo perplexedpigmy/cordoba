@@ -5,6 +5,19 @@ list(APPEND SRCS  src/timing.cpp src/example.cpp)
 
 add_subdirectory(gd)
 
+set(BUILD_PROPERTIES
+  CXX_STANDARD 23
+  CXX_EXTENSIONS OFF
+  CXX_STANDARD_REQUIRED ON
+)
+
+if(SANITIZE)
+  list(APPEND BUILD_PROPERTIES
+    CXX_FLAGS "-fsanitize=address"
+    LINK_FLAGS "-fsanitize=address"
+  )
+endif()
+
 foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
   message(STATUS "APPNAME=${APP_NAME}  APP_SRC=${APP_SRC}")
   
@@ -13,9 +26,7 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
   
   set_target_properties(${APP_NAME}
     PROPERTIES
-      CXX_STANDARD 20
-      CXX_EXTENSIONS OFF
-      CXX_STANDARD_REQUIRED ON
+      ${BUILD_PROPERTIES}
   )
   target_link_libraries(${APP_NAME} PUBLIC gd)
   target_compile_features(${APP_NAME} PRIVATE cxx_std_20)

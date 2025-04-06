@@ -10,7 +10,7 @@
 namespace gd {
   /**
    * Git resource owner abstraction, 
-   * Ownership is unique and when the last ower goes out of scope, resource is destructed
+   * Ownership is unique and when the last owner goes out of scope, resource is destructed
    */
   template <typename T, void (*Terminator)(T*)>
   class Guard {
@@ -29,11 +29,10 @@ namespace gd {
     }
 
     /**
-     * Destruct the resouce if it exists
+     * Destruct the resource if it exists
      */
     void innerDestruct() noexcept {
       if (r_) { 
-        // std::cout << this << ": " << "Dtor " <<  r_ << " Type(" << typeid(r_).name() << ")" << std::endl;
         Terminator(r_); 
         r_ = nullptr;
       }
@@ -42,20 +41,17 @@ namespace gd {
     public:
     Guard(T* resource = nullptr) noexcept
     :r_(resource) {
-      // std::cout << this << ": "<< "Ctor " <<  r_ << " Type(" << typeid(r_).name() << ")" << std::endl;
     }
   
     Guard(const Guard&) = delete;
     Guard& operator=(const Guard&) = delete;
 
     Guard(Guard&& other) noexcept { 
-      // std::cout << &other << " -> " << this << ": "<< "Move [" <<  other.r_ << "] Type(" << typeid(r_).name() << ")" << std::endl;
       std::swap(r_, other.r_);
       other.r_ = nullptr;
     }
 
     Guard& operator=(Guard&& other) noexcept {
-      // std::cout << &other << " -> " << this << ": "<< "Mov= [" <<  r_  << "] -> [" << other.r_ << "] Type(" << typeid(r_).name() << ")" << std::endl;
       take(std::move(other));
       return *this;
     }
@@ -119,21 +115,21 @@ getTree(git_repository* repo, const git_oid* treeOid) noexcept;
 Result<gd::tree_t>
 getTreeRelativeToRoot(git_repository* repo, git_tree* root, const std::filesystem::path& path) noexcept;
 
-/// @brief Retieves a Tree from a Commit
+/// @brief Retrieve a Tree from a Commit
 /// @param repo a pointer to an open git repository
 /// @param commit The git_commit representing the location on the DAG
 /// @return On success a corresponding RAII git_commit, otherwise an Error
 Result<gd::tree_t>
 getTreeOfCommit(git_repository* repo, git_commit* commit) noexcept;
 
-/// @brief Retieves an object by a given revision string 
+/// @brief Retrieve an object by a given revision string 
 /// @param repo A pointer to an open git repository
 /// @param spec A revision string. \link https://git-scm.com/docs/git-rev-parse.html#_specifying_revisions See more \endlink
 /// @return On success a corresponding RAII git_object, otherwise an Error
 Result<gd::object_t>
 getObjectBySpec(git_repository* repo, const std::string& spec) noexcept;
 
-/// @brief Retrieves a commit by a given revision string
+/// @brief Retrieve a commit by a given revision string
 /// @param repo A pointer to an open git repository
 /// @param ref A revision string. \link https://git-scm.com/docs/git-rev-parse.html#_specifying_revisions See more \endlink
 /// @return On success a corresponding RAII git_commit, otherwise an Error
@@ -156,31 +152,31 @@ getTreeBuilder(git_repository* repo, const git_tree* tree) noexcept;
 
 /// @brief Creates a new signature to be used in a commit
 /// @param author The author's name 
-/// @param email The authoer's email
+/// @param email The author's email
 /// @return On success the new RAII git_signature, otherwise an Error
 Result<gd::signature_t>
 getSignature(const std::string& author, const std::string& email) noexcept;
 
 /// @brief Creates a new branch and returns a reference to it
 /// @param repo A pointer to an open git repository
-/// @param name The new branche's name
+/// @param name The new branch's name
 /// @param commit The commit on the DAG from which to start the new branch
 /// @return On success new RAII git_reference, otherwise an Error
 /// 
-/// Call for Branch creation doesn't chagne the context's branch
+/// Call for Branch creation doesn't change the context's branch
 Result<gd::reference_t>
 createBranch(git_repository* repo, const std::string& name, const git_commit* commit) noexcept; 
 
-/// @brief Opens an exisiting repository
+/// @brief Opens an existing repository
 /// @param fullpath full path to the repository 
-/// @return on success a new RIAA git_repository, otherwise an error
+/// @return on success a new RAII git_repository, otherwise an error
 Result<gd::repository_t>
 openRepository(const std::filesystem::path& fullpath) noexcept;
 
 /// @brief Creates a new repository
 /// @param fullpath full path to the new repository
 /// @param name creator's name
-/// @return On success a new RIAA git_repository, otherwise an error
+/// @return On success a new RAII git_repository, otherwise an error
 Result<gd::repository_t>
 createRepository(const std::string& fullpath, const std::string& name) noexcept;
 
@@ -206,9 +202,9 @@ contentOf(git_repository* repo, git_oid const * commitId, const std::filesystem:
 Result<git_oid const *> 
 referenceCommit(git_repository* repo, const std::string& ref) noexcept;
 
-/// @brief retieves a blob y its Id
+/// @brief retrieve a blob y its Id
 /// @param repo A pointer to an open git repository
 /// @param blobId The blog `git_oid`
-/// @return On successa RAII git_blob otherwise and error
-Result<git_blob*>
+/// @return On success RAII git_blob otherwise and error
+Result<gd::blob_t>
 getBlobById(git_repository* repo, git_oid const * blobId) noexcept;

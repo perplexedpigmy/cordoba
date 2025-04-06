@@ -18,6 +18,7 @@ class Crudité {
   public:
     using Application = std::function<void(GlycemicIt::Elements&)>;
     virtual Result<Context> applyGit(Result<Context>&&, GlycemicIt::Elements& elems, char agentId) const noexcept = 0;
+    virtual ~Crudité() = default;
 };
 
 /// @brief CRTP construct whose sole purpose is adding getters to CRUD (and potentially other DB actions) 

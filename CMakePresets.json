@@ -5,9 +5,21 @@
       "name": "Debug",
       "description": "Default Debug",
       "hidden": false,
-      "generator": "Unix Makefiles",
+      "generator": "Ninja",
       "binaryDir": "${workspaceFolder}/build/debug",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
+      }
+    },
+    {
+      "name": "DebugSanitize",
+      "description": "Debug with sanitization",
+      "hidden": false,
+      "generator": "Ninja",
+      "binaryDir": "${workspaceFolder}/build/s.debug",
+      "cacheVariables": {
+        "SANITIZE": "On",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
       }
@@ -16,11 +28,34 @@
       "name": "Release",
       "description": "Default Release",
       "hidden": false,
-      "generator": "Unix Makefiles",
+      "generator": "Ninja",
       "binaryDir": "${workspaceFolder}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
+      }
+    },
+    {
+      "name": "ReleaseSanitize",
+      "description": "Release with sanitization",
+      "hidden": false,
+      "generator": "Ninja",
+      "binaryDir": "${workspaceFolder}/build/s.release",
+      "cacheVariables": {
+        "SANITIZE": "On",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
+      }
+    },
+    {
+      "name": "Custom configure preset",
+      "displayName": "Custom configure preset",
+      "description": "Sets Ninja generator, build and install directory",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
       }
     },
     {

@@ -54,7 +54,7 @@ Result<gd::Context> randomizeBranch(char agentId, Result<Context>&& ctx, int num
   if (isNew) {
     ctx = std::move(ctx).and_then(createBranch(branchName));
     if (!ctx) {
-      return unexpected_err(ctx.error());
+      return unexpected(std::move(ctx));
     }
   }
   ctx = std::move(ctx).and_then(selectBranch(branchName));
@@ -93,6 +93,7 @@ Result<size_t> agent(
   size_t maxDirectoryDepth,
   size_t maxFilenameLength
   ) noexcept {
+  
     char agentId = getLetterId();
     size_t currentCommitNum = 0;
     spdlog::info("Agent ({}) Started", agentId); 
@@ -109,13 +110,11 @@ Result<size_t> agent(
     criticalsection.lock();
     auto ctx = selectRepository(repoPath);
     criticalsection.unlock();
-
     if (!ctx)
-      return unexpected_err(ctx.error());
+      return unexpected(std::move(ctx));
   
     while (sGit.ok() && !!ctx && currentCommitNum++ < numCommits) {
       GlycemicIt::CommitProps props(ctx->getCommitId(), sGit);
-
       for ( const auto& op : opGenerator(s, numOps, sGit)) {
         ctx = op->applyGit(std::move(ctx), props.elems_, agentId );
       }

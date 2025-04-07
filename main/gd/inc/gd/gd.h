@@ -18,27 +18,16 @@
  *       First the updates are not shared between local variable and local thread context 
  *       Re-think the semantics of local thread context, 
  *        is it interchangable 
- *        when should it be destructed? Additional API with callers responsiblity.
- * TODO: Review considerations:
- *    Currently reading non-commited added files or updates is not possible (Any use case for that)
- *    Updating the same file more than once (Including creation + update) is undefined behavior (Should it be supported?)
+ *        when should it be destructed? Additional API with callers responsibility.
  * 
- * TODO: Timing and scalabilty checks
- *       - naive, 10,000 files per directory = ~50files/s    100 files per directory = ~1000/s
- *       - index,
- *       - local caching until commit. 
- *
  * TODO: Support for sharding. 
+ * 
  * TODO: Missing interface
  *         merge
  *         tag
- * TODO: Tags support
- * TODO: Metadata support (notes)
+ *         metadata(notes)
  * 
- * TODO: Testing, testing and more testing 
- *       test rollback
- *       test multithreading
- * TODO: Split Node, into Node && NodeWithTip or something to that effect. I can't recall why this was intereting
+ * TODO: Split Node, into Node && NodeWithTip or something to that effect. I can't recall why this was interesting 
  **/
 namespace gd
 {
@@ -206,7 +195,7 @@ namespace gd
     };
   }
 
-  /// @brief Removes a file or a direcotry by fullpath
+  /// @brief Removes a file or a directory by fullpath
   /// @param fullpath The full path of the file to remove
   /// @return On success returns a context for continuation, otherwise an Error
   inline auto del(const std::string& fullpath) noexcept
@@ -217,7 +206,7 @@ namespace gd
   }
 
   /// @brief Renames and/or moves a files in the git repository tree 
-  /// @param fullpath The full path including the file/direcotry name to move from
+  /// @param fullpath The full path including the file/directory name to move from
   /// @param toFullpath The full path including the new file/directory name to move to
   /// @return On success returns a context for continuation, otherwise an Error
   inline auto mv(const std::string& fullpath, const std::string& toFullpath) noexcept

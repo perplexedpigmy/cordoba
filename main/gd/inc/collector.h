@@ -11,7 +11,7 @@
 namespace gd {
   struct Context;
 
-  /// @brief Abstraction describing an Object udpate and an `action` to apply the update to a git repository
+  /// @brief Abstraction describing an Object update and an `action` to apply the update to a git repository
   class ObjectUpdate {
     using Action = Result<void>(ObjectUpdate::*)(git_treebuilder*) const noexcept;
 
@@ -25,13 +25,13 @@ namespace gd {
     /// @param obj The Object to be added
     Result<void> insert(git_treebuilder *bld) const noexcept {
       if(git_treebuilder_insert(nullptr, bld, name_.c_str(), &oid_, mod_) != 0)
-        return unexpected_git;
+        return unexpected();
       return Result<void>();
     }
 
     Result<void> remove(git_treebuilder *bld) const noexcept {
       if(git_treebuilder_remove(bld, name_.c_str()))
-        return unexpected_git;
+        return unexpected();
       return Result<void>();
     }
     
@@ -49,7 +49,7 @@ namespace gd {
       git_filemode_t mod() const noexcept { return mod_; }
       const std::string&  name() const noexcept { return name_; }
 
-      /// @return  returns True if the ObjectUpdate is delete in uncommited context
+      /// @return  returns True if the ObjectUpdate is delete in uncommitted context
       bool isDelete() const noexcept {
         return git_oid_iszero(&oid_);
       }
@@ -84,7 +84,7 @@ namespace gd {
       remove(const std::filesystem::path& fullpath) noexcept;
 
       /// @brief Applies the Update into the git repository
-      /// @param builder the builder representing the direcotry on the update
+      /// @param builder the builder representing the directory on the update
       /// @return On success nothing, otherwise an error.
       Result<void>
       gitIt(git_treebuilder* builder) const noexcept;
@@ -94,8 +94,8 @@ namespace gd {
   std::ostream& operator<<(std::ostream& os, ObjectUpdate const& ) noexcept;
 
   /// @brief Each file or directory updated requires to construct the entire tree from its location 
-  ///        up to the root directory, thus the updates are applied from longenst path to shorter path
-  ///        any each such element adds it's parent direcotry if it doesn't exist
+  ///        up to the root directory, thus the updates are applied from longest path to shorter path
+  ///        any each such element adds it's parent directory if it doesn't exist
   ///        `LongestPathFirst` sorts the Updates in this proper order
   struct LongerPathFirst {
     bool operator()(const std::filesystem::path& a, const std::filesystem::path& b) const {
@@ -122,7 +122,7 @@ namespace gd {
 
     public:
 
-    /// @brief inserts a Blob(gitspeak for File) into a directo
+    /// @brief inserts a Blob(gitspeak for File) into a directory
     /// @param ctx the context used to access the repository
     /// @param fullpath Full path of a file(or in gitspeak Blob) including filename
     /// @param content the entire file content
@@ -165,7 +165,7 @@ namespace gd {
     /// @brief retrieves a not yet committed blob from the collector
     /// @param fullpath The full path of blob to retrieve
     /// @return On success returns a blob, otherwise an Error
-    Result<git_blob*> 
+    Result<gd::blob_t> 
     getBlobByPath(const Context& ctx, const std::filesystem::path& fullpath) const noexcept; 
   };
 }

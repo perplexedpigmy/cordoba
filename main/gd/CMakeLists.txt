@@ -69,6 +69,18 @@ target_link_libraries(gd PUBLIC spdlog)
 
 # export(TARGETS gd FILE MyLibraryConfig.cmake)
 
+set(BUILD_PROPERTIES
+  CXX_STANDARD 23
+  CXX_EXTENSIONS OFF
+  CXX_STANDARD_REQUIRED ON
+)
+
+if(SANITIZE)
+  list(APPEND BUILD_PROPERTIES
+    CXX_FLAGS "-fsanitize=address"
+    LINK_FLAGS "-fsanitize=address"
+  )
+endif()
 
 list(APPEND TESTS      crud          greens)
 list(APPEND TEST_SRCS  test/crud.cpp test/greens.cpp)
@@ -80,9 +92,7 @@ foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
   target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   set_target_properties(${TEST_NAME}
     PROPERTIES
-      CXX_STANDARD 20
-      CXX_EXTENSIONS OFF
-      CXX_STANDARD_REQUIRED ON
+      ${BUILD_PROPERTIES}
   )
   
   target_link_libraries(${TEST_NAME} PUBLIC CLI11)

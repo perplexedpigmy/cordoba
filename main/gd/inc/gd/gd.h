@@ -14,6 +14,9 @@
 #include <spdlog/spdlog.h>
 
 /**
+ * C⊕rdoba creates and manages a standard git repository. For operations not yet directly
+ * supported by the library, the repository can be manipulated using git CLI tools.
+ *
  * TODO: Review functionality of Thread local context
  *       First the updates are not shared between local variable and local thread context 
  *       Re-think the semantics of local thread context, 
@@ -21,13 +24,11 @@
  *        when should it be destructed? Additional API with callers responsibility.
  * 
  * TODO: Support for sharding. 
- * 
- * TODO: Missing interface
- *         merge
- *         tag
- *         metadata(notes)
- * 
- * TODO: Split Node, into Node && NodeWithTip or something to that effect. I can't recall why this was interesting 
+ *
+ * Not yet directly supported (use git CLI):
+ *   - merge, tag, notes — work via git CLI on the repository
+ *
+ * TODO: Split Node into Node && NodeWithTip or something to that effect. I can't recall why this was interesting 
  **/
 namespace gd
 {

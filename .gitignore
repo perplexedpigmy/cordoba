@@ -11,3 +11,6 @@ distributed.tooling
 
 .bash_history
 .justfile
+
+# Environment files
+.env

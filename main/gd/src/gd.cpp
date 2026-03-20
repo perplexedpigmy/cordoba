@@ -324,10 +324,6 @@ gd::TreeCollector::apply(gd::Context& ctx) noexcept {
   return getTree(*ctx.repo_, treeOid);
 }
 
-// TODO: If the order of application of dirObjs_ is irrelevant its type can be replace to a hash or a map
-//       In which case only the last action of an element will be collected and retrieval will be O(1) or O(log n)
-//       as opposed to the now O(n) retrieval that can affect very big transactions in the same directory
-//       Even if the order is significant, an additional hash could be introduced for the same effect.
 Result<gd::blob_t> 
 gd::TreeCollector::getBlobByPath(const gd::Context& ctx, const std::filesystem::path& fullpath) const noexcept  {
   
@@ -364,7 +360,6 @@ void gd::Context::setRepo(gd::repository_t* repo) noexcept
 
 void gd::Context::setBranch(const std::string& fullPathRef) noexcept
 {
-  /// TODO: Does `tip` need an update
   ref_ = fullPathRef;
 }
 
@@ -636,7 +631,6 @@ gd::ni::commit(gd::Context&& ctx, const std::string& author, const std::string& 
 /// @brief Undoes, all the non-comitted updates.
 /// @param ctx The context used to access the repository
 /// @return On success the context for continued chaining, otherwise an error.
-/// TODO: Test 
 Result<gd::Context>
 gd::ni::rollback(gd::Context&& ctx) noexcept
 {
@@ -660,7 +654,6 @@ gd::ni::createBranch(gd::Context&& ctx, const git_oid* commitId, const std::stri
   if (!branchRef)
     return unexpected(std::move(branchRef));
 
-  /// TODO: How about adding commitId to the logs
   sLogger->debug("Branch '{}' created", name);
   return std::move(ctx);
 }
@@ -676,7 +669,6 @@ gd::ni::createBranch(gd::Context&& ctx, const std::string& name) noexcept
   if (!branchRef)
     return unexpected(std::move(branchRef));
 
-  /// TODO: How about adding commitId to the logs
   sLogger->debug("Branch '{}' created", name);
   return std::move(ctx);
 }

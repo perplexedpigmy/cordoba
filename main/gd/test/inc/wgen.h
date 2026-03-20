@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 #include <cstdint>
-#include <experimental/random>
+#include <random>
 #include <algorithm>
 #include <locale>
 #include <ranges>
@@ -15,6 +15,23 @@
 
 namespace wgen 
 {
+  // Helper function for random integers (C++20 replacement for std::experimental::randint)
+  inline thread_local std::mt19937 engine{ std::random_device{}() };
+
+  template<typename T>
+  T randint(T min, T max) {
+    return std::uniform_int_distribution<T>(min, max)(engine);
+  }
+
+  template<typename T>
+  T randint(T min, T max, std::size_t) {
+    return std::uniform_int_distribution<T>(min, max)(engine);
+  }
+
+  inline void reseed(std::uint32_t value) {
+    engine.seed(value);
+  }
+
   class syllabary
   {
   private:
@@ -132,7 +149,7 @@ namespace wgen
   { }
 
   std::string syllabary::random_word(int max_letters, Format format) const noexcept {
-    auto word_length = std::experimental::randint(2, max_letters);
+    auto word_length = randint(2, max_letters);
     std::string word;
     word.resize(word_length);
     random_word_(&*word.begin(), &*word.end(), word_length, format);
@@ -142,7 +159,7 @@ namespace wgen
   // A sentence is a collection of words that start with a name and ends with a point 
   std::string syllabary::random_sentence(int max_words) const noexcept {
     auto sentence = random_word(10, Format::Name);
-    auto num_words = std::experimental::randint(2, max_words);
+    auto num_words = randint(2, max_words);
     for (int _ : std::views::iota(0, num_words)) {
       sentence += " " + random_word(15);
     }
@@ -152,9 +169,8 @@ namespace wgen
 
   // A Paragraph is a collection of sentences 
   std::string syllabary::random_paragraph(int max_sentences = 10) const noexcept {
-    auto num_sentences = std::experimental::randint(2, max_sentences);
+    auto num_sentences = randint(2, max_sentences);
 
-    /// Ranges at least in c++20 is a disappointment, there is no way to do map -> join, a basic use case.
     std::string paragraph;
     for (auto _: std::views::iota(0, num_sentences)) {
       paragraph += random_sentence(10);
@@ -174,13 +190,13 @@ namespace wgen
   std::filesystem::path syllabary::random_filename(int depth) const noexcept {
     static std::vector<std::string> extensions = { "json", "txt", "md", "doc", "xls", "cpp", "rs", "py", "rb", "hs", "sh"};
     static int maxExt = extensions.size() - 1;
-    auto dirs = std::experimental::randint(1, depth);
+    auto dirs = randint(1, depth);
 
     std::filesystem::path filename;
     for (auto _: std::views::iota(0, dirs)) {
       filename = filename / random_word(maxFilenameLength_);   /// TODO: Make a decent size 
     }
-    return filename.relative_path().replace_extension(extensions[std::experimental::randint(0, maxExt)]);
+    return filename.relative_path().replace_extension(extensions[randint(0, maxExt)]);
   }
 
   std::filesystem::path syllabary::random_unique_filename() const noexcept {
@@ -229,7 +245,7 @@ namespace wgen
     {
       char* iter = first;
   
-      if ((word_length & 1) && (codas_.empty() || std::experimental::randint(0,1) == 1))
+      if ((word_length & 1) && (codas_.empty() || randint(0,1) == 1))
       {
           *iter++ = random_vowel_();
       }
@@ -314,19 +330,19 @@ namespace wgen
 
   char syllabary::random_consonant_() const
   {
-    std::size_t idx = std::experimental::randint<std::size_t>(0, consonants_.size()-1);
+    std::size_t idx = wgen::randint<std::size_t>(0, consonants_.size()-1);
     return consonants_[idx];
   }
 
   char syllabary::random_vowel_() const
   {
-    std::size_t idx = std::experimental::randint<std::size_t>(0, vowels_.size()-1);
+    std::size_t idx = wgen::randint<std::size_t>(0, vowels_.size()-1);
     return vowels_[idx];
   }
 
   char syllabary::random_coda_() const
   {
-    std::size_t idx = std::experimental::randint<std::size_t>(0, codas_.size()-1);
+    std::size_t idx = wgen::randint<std::size_t>(0, codas_.size()-1);
     return codas_[idx];
   }
 

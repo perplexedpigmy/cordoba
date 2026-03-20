@@ -18,6 +18,12 @@ if(SANITIZE)
   )
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  list(APPEND BUILD_PROPERTIES
+    CXX_FLAGS "-fcoroutines"
+  )
+endif()
+
 foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
   message(STATUS "APPNAME=${APP_NAME}  APP_SRC=${APP_SRC}")
   
@@ -30,7 +36,6 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
   )
   target_link_libraries(${APP_NAME} PUBLIC gd)
   target_compile_features(${APP_NAME} PRIVATE cxx_std_20)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
   
   # Debug version will have the symbols in the executables
   # But allow release to be as small as possible while still having its symbols if needed

@@ -11,7 +11,6 @@
 #include <map>
 #include <shared_mutex>
 #include <format>
-#include <experimental/random>
 #include "out.h"
 
 #include <openssl/sha.h>
@@ -47,7 +46,7 @@ Result<gd::Context> randomizeBranch(char agentId, Result<Context>&& ctx, int num
   if (sGit.isEmpty()) 
     return std::move(ctx);
 
-  auto branchNum = std::experimental::randint(0, numBranches-1);
+  auto branchNum = wgen::randint(0, numBranches-1);
 
   std::scoped_lock serialize(branchCreation);
   auto [branchName, isNew] = sGit.getBranch(branchNum);
@@ -214,8 +213,8 @@ int main(int argc, char** argv)
   setLogger(logFile);
 
   if (seed == -1)
-    seed = std::experimental::randint(0, 10000);
-  std::experimental::reseed(seed);
+    seed = wgen::randint(0, 10000);
+  wgen::reseed(seed);
 
   spdlog::info("Starting test with random seed {}\n{:>5} agents\n{:>5} Branches\n{:>5} Commits\n{:>5} Max Ops\n{:>5} max directory depth\n{:>5} max filename", 
     seed, numAgents, maxBranches, numCommits, numOps, maxDirectoryDepth, maxFilenameLength);

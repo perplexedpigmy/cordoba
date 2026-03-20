@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <shared_mutex>
+#include "wgen.h"
 
 
 static const char* validIcon    = "✅";
@@ -241,7 +242,7 @@ GlycemicIt::getRandomFileOfContext(GlycemicIt::CommitId commitId) const {
     throw "(test bug) Commit '"s + shortSha(commitId) + "' has zero elements while trying to find random file of context";
 
   int lastIndex = commit->second.elems_.size() - 1;
-  return commit->second.elems_[ std::experimental::randint(0, lastIndex)].first;
+  return commit->second.elems_[ wgen::randint(0, lastIndex)].first;
 }
 
 

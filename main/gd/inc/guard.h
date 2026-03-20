@@ -3,7 +3,6 @@
 #include <git2.h>
 #include <err.h>
 #include <filesystem>
-#include <iostream> // TODO: remove
 #include <expected.h>
 
 

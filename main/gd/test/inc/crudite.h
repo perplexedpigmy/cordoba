@@ -60,7 +60,7 @@ public:
     if (elems.empty()) 
       return std::move(ctx);
 
-    auto updateIdx = std::experimental::randint(0, static_cast<int>(elems.size() - 1));
+    auto updateIdx = wgen::randint(0, static_cast<int>(elems.size() - 1));
     std::filesystem::path name = elems[updateIdx].first;
       
     spdlog::info("({}) [{} {}] UPDATE {} (size: {})", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name, content_.size());
@@ -82,7 +82,7 @@ public:
     if (elems.empty()) 
       return std::move(ctx);
 
-    auto delIdx = std::experimental::randint(0, static_cast<int>(elems.size() - 1));
+    auto delIdx = wgen::randint(0, static_cast<int>(elems.size() - 1));
     std::filesystem::path name = elems[delIdx].first;
       
     spdlog::info("({}) [{} {}] DELETE {}", agentId, ctx->ref_, shortSha(ctx->getCommitId()), name);
@@ -104,7 +104,7 @@ public:
     if (elems.empty()) 
       return std::move(ctx);
 
-    auto delIdx = std::experimental::randint(0, static_cast<int>(elems.size() - 1));
+    auto delIdx = wgen::randint(0, static_cast<int>(elems.size() - 1));
     std::filesystem::path name  = elems[delIdx].first;
       
     auto readCtx = std::move(ctx).and_then(read(name));
@@ -140,7 +140,7 @@ opGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git) noe
   std::vector<double> probabilities;
   std::transform(getters.begin(), getters.end(), std::back_inserter(probabilities), [](const auto p) { return p.first; });
   std::discrete_distribution<> dist{ probabilities.begin(), probabilities.end() };
-  std::mt19937 engine;
+  std::mt19937 engine{ std::random_device{}() };
 
   /// The very first action for a repository must be a `Create` otherwise there is nothing to update, delete or read
   if (git.isEmpty()) {

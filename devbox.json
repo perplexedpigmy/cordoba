@@ -1,0 +1,10 @@
+{
+  "packages": [
+    "gcc@14",
+    "cmake",
+    "ninja",
+    "git",
+    "openssl",
+    "curl"
+  ]
+}

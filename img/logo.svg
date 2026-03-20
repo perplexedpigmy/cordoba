@@ -1,23 +1,107 @@
 <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
-  <!-- Main circle -->
-  <circle cx="200" cy="200" r="180" fill="#e8d5b5"/>
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f0f23"/>
+      <stop offset="100%" stop-color="#1a1a3e"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="200" cy="200" r="195" fill="url(#bgGrad)"/>
   
-  <!-- Decorative border -->
-  <circle cx="200" cy="200" r="170" fill="none" stroke="#8b4513" stroke-width="4"/>
-  
-  <!-- Moorish arch pattern -->
-  <path d="M 100 280 Q 200 100 300 280" fill="#c17f59"/>
-  <path d="M 120 260 Q 200 120 280 260" fill="#f4e4bc"/>
-  
-  <!-- Inner arch details -->
-  <path d="M 140 240 Q 200 140 260 240" fill="none" stroke="#8b4513" stroke-width="3"/>
-  
-  <!-- Geometric star pattern -->
-  <path d="M 180 180 L 220 180 L 200 150 Z" fill="#8b4513"/>
-  <path d="M 180 220 L 220 220 L 200 250 Z" fill="#8b4513"/>
-  <path d="M 170 200 L 230 200 L 200 200 M 200 170 L 200 230" stroke="#8b4513" stroke-width="2"/>
-  
-  <!-- Ornamental circles -->
-  <circle cx="200" cy="200" r="15" fill="#8b4513"/>
-  <circle cx="200" cy="200" r="10" fill="#f4e4bc"/>
+  <!-- Decorative Moorish arch frame -->
+  <path d="M 60 340 Q 60 60 200 60 Q 340 60 340 340" 
+        fill="none" 
+        stroke="#2dd4bf" 
+        stroke-width="4"
+        opacity="0.3"/>
+
+  <!-- Large C shape (Cordoba + C++) -->
+  <g transform="translate(200, 200)">
+    <!-- C outer arc -->
+    <path d="M 60 -80 
+             A 100 100 0 1 0 60 80" 
+          fill="none" 
+          stroke="url(#tealGrad)" 
+          stroke-width="12"
+          stroke-linecap="round"
+          filter="url(#glow)"/>
+    
+    <!-- C inner detail -->
+    <path d="M 45 -60 
+             A 75 75 0 1 0 45 60" 
+          fill="none" 
+          stroke="#2dd4bf" 
+          stroke-width="2"
+          opacity="0.4"/>
+  </g>
+
+  <!-- Version circles flowing from C (like git commits/branches) -->
+  <g>
+    <!-- Circle 1 - top right -->
+    <g transform="translate(280, 100)">
+      <circle r="25" fill="#0f0f23" stroke="#f472b6" stroke-width="3"/>
+      <rect x="-8" y="-2" width="16" height="4" rx="1" fill="#f472b6"/>
+      <rect x="-2" y="-8" width="4" height="16" rx="1" fill="#f472b6"/>
+    </g>
+    
+    <!-- Circle 2 - right -->
+    <g transform="translate(310, 200)">
+      <circle r="30" fill="#0f0f23" stroke="#fbbf24" stroke-width="3"/>
+      <rect x="-10" y="-3" width="20" height="6" rx="2" fill="#fbbf24"/>
+      <rect x="-3" y="-10" width="6" height="20" rx="2" fill="#fbbf24"/>
+    </g>
+    
+    <!-- Circle 3 - bottom right -->
+    <g transform="translate(280, 300)">
+      <circle r="25" fill="#0f0f23" stroke="#a78bfa" stroke-width="3"/>
+      <rect x="-8" y="-2" width="16" height="4" rx="1" fill="#a78bfa"/>
+      <rect x="-2" y="-8" width="4" height="16" rx="1" fill="#a78bfa"/>
+    </g>
+
+    <!-- Connecting lines (branches flowing from C) -->
+    <g stroke-width="2" fill="none" opacity="0.6">
+      <path d="M 200 80 Q 240 90 280 100" stroke="#f472b6"/>
+      <path d="M 220 200 L 280 200" stroke="#fbbf24"/>
+      <path d="M 200 320 Q 240 310 280 300" stroke="#a78bfa"/>
+    </g>
+  </g>
+
+  <!-- Moorish arch details at top -->
+  <g transform="translate(200, 60)" opacity="0.5">
+    <circle r="8" fill="#2dd4bf"/>
+    <circle r="4" fill="#0f0f23"/>
+  </g>
+  <g transform="translate(120, 100)" opacity="0.3">
+    <circle r="5" fill="#2dd4bf"/>
+  </g>
+  <g transform="translate(280, 100)" opacity="0.3">
+    <circle r="5" fill="#2dd4bf"/>
+  </g>
+
+  <!-- Corner decorations -->
+  <g fill="#2dd4bf" opacity="0.3">
+    <circle cx="40" cy="40" r="4"/>
+    <circle cx="360" cy="40" r="4"/>
+    <circle cx="40" cy="360" r="4"/>
+    <circle cx="360" cy="360" r="4"/>
+  </g>
+
+  <!-- C++ indicator dots -->
+  <g transform="translate(200, 340)" opacity="0.4">
+    <circle cx="-15" cy="0" r="4" fill="#2dd4bf"/>
+    <circle cx="0" cy="0" r="4" fill="#2dd4bf"/>
+    <circle cx="15" cy="0" r="4" fill="#2dd4bf"/>
+  </g>
 </svg>

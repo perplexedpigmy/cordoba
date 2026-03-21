@@ -60,7 +60,7 @@ void speedTest()
         dbx >> add( domain + "/" + id, content);
 
     dbx >> commit("speed", "speedo@here.com", "timing commit\n")
-        || [](const auto& err) { assertError("Commit failed", err); };
+        || [](const auto& err) -> Result<gd::Context> { assertError("Commit failed", err); return gd_unexpected(err); };
 
     auto end = chrono::steady_clock::now();
     auto durationMs = chrono::duration <double, micro> (end - start).count();

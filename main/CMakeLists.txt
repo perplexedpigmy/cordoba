@@ -35,7 +35,7 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
       ${BUILD_PROPERTIES}
   )
   target_link_libraries(${APP_NAME} PUBLIC gd)
-  target_compile_features(${APP_NAME} PRIVATE cxx_std_20)
+  target_compile_features(${APP_NAME} PRIVATE cxx_std_23)
   
   # Debug version will have the symbols in the executables
   # But allow release to be as small as possible while still having its symbols if needed

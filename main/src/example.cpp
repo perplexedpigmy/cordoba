@@ -56,7 +56,7 @@ void addElementToDefaultBranch() {
 void addAnotherElementToDefaultBranch() {
   auto ctx = selectRepository(repoPath)
     >> commit("test", "test@here.org", "fix: add a license")
-    || [](const auto& err) { std::cerr  << "Failed to commit: " <<  err << std::endl; };
+    || [](const auto& err) -> Result<gd::Context> { std::cerr  << "Failed to commit: " <<  err << std::endl; return gd_unexpected(err); };
 
     // OUTPUT:
     //
@@ -70,7 +70,7 @@ void createSomeBranches() {
     >> createBranch("KenAndRitchie")
     >> createBranch("StevenPinker")
     >> createBranch("AIReboot")
-    || [](const auto& err) { cout << "Failed to create branches: " << err << std::endl; };
+    || [](const auto& err) -> Result<gd::Context> { cout << "Failed to create branches: " << err << std::endl; return gd_unexpected(err); };
 
     // OUTPUT:
     //
@@ -88,9 +88,10 @@ void addElementsOnBranch() {
 
     >> add("Enlightenment now", "THE TOP **TEN** SUNDAY TIMES BESTSELLER")
     >> commit("test", "test@here.org", "correct review")
-    || [](const auto& err) { 
+    || [](const auto& err) -> Result<gd::Context> { 
       spdlog::error("Failed updating branch StevenPinker: {}", static_cast<string>(err));
       rollback();
+      return gd_unexpected(err);
     };
 }
 
@@ -107,7 +108,7 @@ void rollbackUnwantedChanges() {
     >> add("src/dev/c/hello.c", "#include <hello.h>")
     >> add("src/dev/include/hello.h", "#pragma once\n")
     >> rollback()  // Zig is king baby, zig is king
-    || [](const auto& err) { cout << "Updating branch Ken&Ritchie: " <<  err << endl; };
+    || [](const auto& err) -> Result<gd::Context> { cout << "Updating branch Ken&Ritchie: " <<  err << endl; return gd_unexpected(err); };
 
     // OUTPUT:
     //
@@ -133,7 +134,7 @@ void readingContent() {
     ctx 
       >> read("SomethingThatDoesntExist")
       >> processContent([](auto content) { cout << "Bwahahaha: " << content << endl;})
-      || [](const auto& err) { cout << "Oops: " <<  err << endl; };
+      || [](const auto& err) -> Result<gd::ReadContext> { cout << "Oops: " <<  err << endl; return gd_unexpected(err); };
 
     // OUTPUT:
     //
@@ -184,7 +185,7 @@ void createTree() {
     >> selectBranch(topic)
     >> del("file")
     >> commit("test", "test@here.org", "G")
-      || [](const auto& err) { cout << "Failed tree creation: " <<  err << endl; };
+      || [](const auto& err) -> Result<gd::Context> { cout << "Failed tree creation: " <<  err << endl; return gd_unexpected(err); };
 
     // OUTPUT:
     //

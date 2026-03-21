@@ -53,7 +53,7 @@ Result<gd::Context> randomizeBranch(char agentId, Result<Context>&& ctx, int num
   if (isNew) {
     ctx = std::move(ctx).and_then(createBranch(branchName));
     if (!ctx) {
-      return unexpected(std::move(ctx));
+      return gd_unexpected(std::move(ctx));
     }
   }
   ctx = std::move(ctx).and_then(selectBranch(branchName));
@@ -110,7 +110,7 @@ Result<size_t> agent(
     auto ctx = selectRepository(repoPath);
     criticalsection.unlock();
     if (!ctx)
-      return unexpected(std::move(ctx));
+      return gd_unexpected(std::move(ctx));
   
     while (sGit.ok() && !!ctx && currentCommitNum++ < numCommits) {
       GlycemicIt::CommitProps props(ctx->getCommitId(), sGit);

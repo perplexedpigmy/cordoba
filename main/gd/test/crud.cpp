@@ -527,7 +527,7 @@ TEST_CASE("Errors", "[crud] [error]") {
       .and_then(add(initialFile, initialContent))
       .and_then(commit("test", "test@test.com", "commit message 1"))
       .and_then(commit("test", "test@test.com", "commit message 2"))
-      .or_else([&](const auto& err) { errorMsg = err._msg; });
+      .or_else([&](const auto& err) -> Result<gd::Context> { errorMsg = err._msg; return gd_unexpected(err); });
 
       REQUIRE(!result == true);
       REQUIRE(errorMsg == "Nothing to commit");
@@ -539,7 +539,7 @@ TEST_CASE("Errors", "[crud] [error]") {
       >> add(initialFile, initialContent)
       >> commit("test", "test@test.com", "commit message 1")
       >> commit("test", "test@test.com", "commit message 2")
-      || [&](const auto& err) { errorMsg = err._msg; };
+      || [&](const auto& err) -> Result<gd::Context> { errorMsg = err._msg; return gd_unexpected(err); };
 
       REQUIRE(!result == true);
       REQUIRE(errorMsg == "Nothing to commit");

@@ -1,12 +1,11 @@
 #pragma once 
-#include <expected.h>
-#include <guard.h>
-
-
 #include <map>
+#include <vector>
 #include <filesystem>
 #include <cstring>
 #include <git2.h>
+#include <expected.h>
+#include <guard.h>
 
 namespace gd {
   struct Context;
@@ -25,13 +24,13 @@ namespace gd {
     /// @param obj The Object to be added
     Result<void> insert(git_treebuilder *bld) const noexcept {
       if(git_treebuilder_insert(nullptr, bld, name_.c_str(), &oid_, mod_) != 0)
-        return unexpected();
+        return gd_unexpected();
       return Result<void>();
     }
 
     Result<void> remove(git_treebuilder *bld) const noexcept {
       if(git_treebuilder_remove(bld, name_.c_str()))
-        return unexpected();
+        return gd_unexpected();
       return Result<void>();
     }
     

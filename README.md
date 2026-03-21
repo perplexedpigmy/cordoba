@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/github/v/tag/perplexedpigmy/cordoba?label=Version&pattern=v(.+))](https://github.com/perplexedpigmy/cordoba/releases)
 [![Build](https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml/badge.svg)](https://github.com/perplexedpigmy/cordoba/actions)
 [![License](https://img.shields.io/badge/license-CC0-blue.svg)](LICENSE)
-[![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B20)
+[![C++](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B23)
 [![libgit2](https://img.shields.io/badge/libgit2-1.3-blue.svg)](https://libgit2.org/)
 [![Contributor](https://img.shields.io/github/contributors/perplexedpigmy/cordoba)](https://github.com/perplexedpigmy/cordoba/graphs/contributors)
 

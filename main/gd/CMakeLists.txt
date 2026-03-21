@@ -6,7 +6,7 @@ add_library(gd STATIC
 
 set_target_properties(gd
   PROPERTIES
-    CXX_STANDARD 20 
+    CXX_STANDARD 23
     CXX_EXTENSIONS OFF
     CXX_STANDARD_REQUIRED ON
     SOVERSION 0.1
@@ -38,7 +38,6 @@ target_include_directories(gd PUBLIC
 include(../../cmake/CPM.cmake)
 
 CPMAddPackage("gh:libgit2/libgit2#v1.3.0")
-CPMAddPackage("gh:TartanLlama/expected#v1.0.0")
 CPMAddPackage("gh:catchorg/Catch2@2.13.7")
 CPMAddPackage("gh:gabime/spdlog@1.15.0")
 CPMAddPackage("gh:CLIUtils/CLI11@2.4.2")
@@ -64,10 +63,7 @@ endif()
 target_include_directories(gd PUBLIC ${libgit2_SOURCE_DIR}/include)
 
 target_link_libraries(gd PRIVATE git2)
-target_link_libraries(gd PUBLIC expected)
 target_link_libraries(gd PUBLIC spdlog)
-
-# export(TARGETS gd FILE MyLibraryConfig.cmake)
 
 set(BUILD_PROPERTIES
   CXX_STANDARD 23
@@ -94,14 +90,14 @@ foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
     PROPERTIES
       ${BUILD_PROPERTIES}
   )
-  
+
   target_link_libraries(${TEST_NAME} PUBLIC CLI11)
   target_link_libraries(${TEST_NAME} PRIVATE
     Catch2
     gd
     stdc++fs)
   target_include_directories(${TEST_NAME} PRIVATE inc)
-  
+
   add_test( NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> --success)
 
 endforeach()

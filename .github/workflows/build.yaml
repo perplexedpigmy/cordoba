@@ -28,8 +28,8 @@ jobs:
     
     - name: unitary test
       run: |
-        ./build/main/gd/crud
+        ./build/gd/crud
 
     - name: stress test
       run: |
-        ./build/main/gd/greens
+        ./build/gd/greens

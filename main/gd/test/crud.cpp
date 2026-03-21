@@ -1,6 +1,5 @@
-#define CATCH_CONFIG_MAIN
 #define DEBUG_OUTPUT
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include <string>
 #include <vector>
 #include <set>

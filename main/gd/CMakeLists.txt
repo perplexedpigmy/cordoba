@@ -38,7 +38,7 @@ target_include_directories(gd PUBLIC
 include(../../cmake/CPM.cmake)
 
 CPMAddPackage("gh:libgit2/libgit2#v1.3.0")
-CPMAddPackage("gh:catchorg/Catch2@2.13.7")
+CPMAddPackage("gh:catchorg/Catch2@3.7.0")
 CPMAddPackage("gh:gabime/spdlog@1.15.0")
 CPMAddPackage("gh:CLIUtils/CLI11@2.4.2")
 
@@ -93,11 +93,11 @@ foreach(TEST_NAME TEST_SRC IN ZIP_LISTS TESTS TEST_SRCS)
 
   target_link_libraries(${TEST_NAME} PUBLIC CLI11)
   target_link_libraries(${TEST_NAME} PRIVATE
-    Catch2
+    Catch2WithMain
     gd
     stdc++fs)
   target_include_directories(${TEST_NAME} PRIVATE inc)
 
-  add_test( NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> --success)
+  add_test( NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}>)
 
 endforeach()

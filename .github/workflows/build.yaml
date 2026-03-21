@@ -26,10 +26,5 @@ jobs:
         cmake -B build -DCMAKE_BUILD_TYPE=Release -S main
         cmake --build build
     
-    - name: unitary test
-      run: |
-        ./build/gd/crud
-
-    - name: stress test
-      run: |
-        ./build/gd/greens
+    - name: Run Tests
+      run: ctest --test-dir build --output-on-failure

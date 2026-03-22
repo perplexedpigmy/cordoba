@@ -15,15 +15,19 @@ build preset:
 
 # Run unit tests
 test:
-  ./build/release/main/gd/crud
+  ./build/release/gd/crud
+
+# Run tests with CTest
+ctest:
+  cd build/release && ctest --output-on-failure -R "^(crud|greens)$"
 
 # Run stress test
 stress:
-  ./build/release/main/gd/greens -g 5 -b 10 -c 30 -o 50
+  ./build/release/gd/greens -g 5 -b 10 -c 30 -o 50
 
 # Run performance benchmark
 bench:
-  ./build/release/main/speed
+  ./build/release/examples/speed
 
 [private]
 alias b := branch

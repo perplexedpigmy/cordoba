@@ -1,0 +1,98 @@
+# CordobaConfigVersion.cmake.in
+# CMake package version checking template
+#
+# This file is processed by CMake's find_package() mechanism to verify
+# version compatibility between the installed package and the version
+# requested by the caller.
+#
+# Variables available:
+#   @VERSION@           - Full version string (e.g., "0.1.0")
+#   @PROJECT_VERSION@   - Same as VERSION, for compatibility
+#   @VERSION_MAJOR@     - Major version number
+#   @VERSION_MINOR@     - Minor version number
+#   @VERSION_PATCH@     - Patch version number
+
+####### Version comparison result variables #######
+
+# Set to TRUE if the installed package version is compatible with
+# the version requested in find_package()
+set(PACKAGE_VERSION "@VERSION@")
+
+# Check that the requested version matches the installed version exactly
+if("@VERSION@" STREQUAL "${PACKAGE_FIND_VERSION}")
+  set(PACKAGE_VERSION_EXACT TRUE)
+endif()
+
+# Check for major.minor.patch compatibility (semantic versioning)
+# Versions are compatible if the major version matches and the installed
+# version is greater than or equal to the requested version
+if("${PACKAGE_FIND_VERSION}" VERSION_GREATER "${PACKAGE_VERSION}")
+  math(EXPR _installed_major "@VERSION_MAJOR@")
+  math(EXPR _requested_major "${PACKAGE_FIND_VERSION_MAJOR}")
+
+  if(_installed_major EQUAL _requested_major)
+    # Same major version but patch level is too low
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+  else()
+    # Different major versions are never compatible
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+  endif()
+else()
+  # Installed version >= requested version
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+endif()
+
+# Handle version comparisons for major.minor compatibility
+# e.g., 0.1.0 is compatible with 0.1.x but not 0.2.x or 1.x
+if(PACKAGE_FIND_VERSION_MAJOR EQUAL "@VERSION_MAJOR@")
+  if(PACKAGE_FIND_VERSION_MINOR GREATER "@VERSION_MINOR@")
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+  endif()
+elseif(PACKAGE_FIND_VERSION_MAJOR GREATER "@VERSION_MAJOR@")
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+endif()
+
+####### Version deprecation handling #######
+
+# Define behavior for version compatibility issues
+if("${PACKAGE_VERSION}" VERSION_LESS "${PACKAGE_FIND_VERSION}")
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+endif()
+
+# Clean up temporary variables
+unset(_installed_major)
+unset(_requested_major)
+
+####### Package compatibility markers #######
+
+# Set compatibility flags for different versioning schemes:
+# - Same major.minor.patch: exact match
+# - Same major.minor: compatible (patch differences allowed)
+# - Same major: likely compatible (minor differences allowed)
+
+# CMake 3.19+ supports version format validation
+if(PACKAGE_FIND_VERSION_COUNT GREATER 2)
+  # Check patch version if specified
+  if(PACKAGE_FIND_VERSION_PATCH)
+    if(NOT PACKAGE_FIND_VERSION_PATCH EQUAL "@VERSION_PATCH@")
+      # Different patch version - check if it's acceptable
+      if(PACKAGE_FIND_VERSION_PATCH GREATER "@VERSION_PATCH@")
+        set(PACKAGE_VERSION_COMPATIBLE FALSE)
+      endif()
+    endif()
+  endif()
+endif()
+
+####### Macro for package version reporting #######
+
+# This macro can be used by find_package() to print version information
+macro(pkg_report_version)
+  message(STATUS "Found Cordoba: ${PACKAGE_VERSION} (found suitable version \"${PACKAGE_FIND_VERSION}\", minimum required is \"${PACKAGE_FIND_VERSION}\")")
+endmacro()
+
+# Report the found version if QUIET mode is not set
+if(NOT PACKAGE_FIND_QUIETLY)
+  pkg_report_version()
+elseif(PACKAGE_FIND_REQUIRED AND NOT PACKAGE_VERSION_COMPATIBLE)
+  message(STATUS "Found Cordoba: ${PACKAGE_VERSION} (found version \"${PACKAGE_FIND_VERSION}\")")
+endif()

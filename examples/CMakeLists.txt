@@ -1,9 +1,10 @@
-CMAKE_MINIMUM_REquired(VERSION 3.14 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.14 FATAL_ERROR)
+
+# Examples are built as part of gd_BUILD_APPS option
+# This directory should only be included when gd_BUILD_APPS is ON
 
 list(APPEND NAMES speed          example)
-list(APPEND SRCS  src/timing.cpp src/example.cpp)
-
-add_subdirectory(gd)
+list(APPEND SRCS  timing.cpp     example.cpp)
 
 set(BUILD_PROPERTIES
   CXX_STANDARD 23
@@ -25,7 +26,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
-  message(STATUS "APPNAME=${APP_NAME}  APP_SRC=${APP_SRC}")
+  message(STATUS "Building example: ${APP_NAME} from ${APP_SRC}")
   
   add_executable(${APP_NAME} 
     ${APP_SRC})
@@ -34,8 +35,15 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
     PROPERTIES
       ${BUILD_PROPERTIES}
   )
-  target_link_libraries(${APP_NAME} PUBLIC gd)
-  target_compile_features(${APP_NAME} PRIVATE cxx_std_23)
+  
+  # Link with gd library (OpenSSL is transitively linked through libgit2)
+  target_link_libraries(${APP_NAME} PUBLIC gd::gd)
+  
+  # Include directories for local headers and library headers
+  target_include_directories(${APP_NAME} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/gd/inc
+  )
   
   # Debug version will have the symbols in the executables
   # But allow release to be as small as possible while still having its symbols if needed
@@ -62,4 +70,3 @@ foreach(APP_NAME APP_SRC IN ZIP_LISTS NAMES SRCS)
     COMMAND_EXPAND_LISTS
   )
 endforeach()
-

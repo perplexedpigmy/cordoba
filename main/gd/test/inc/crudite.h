@@ -140,7 +140,7 @@ opGenerator(const wgen::syllabary& s, int numActions, const GlycemicIt& git) noe
   std::vector<double> probabilities;
   std::transform(getters.begin(), getters.end(), std::back_inserter(probabilities), [](const auto p) { return p.first; });
   std::discrete_distribution<> dist{ probabilities.begin(), probabilities.end() };
-  std::mt19937 engine{ std::random_device{}() };
+  std::mt19937 engine;
 
   /// The very first action for a repository must be a `Create` otherwise there is nothing to update, delete or read
   if (git.isEmpty()) {

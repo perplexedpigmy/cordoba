@@ -23,8 +23,10 @@ jobs:
 
     - name: Configure and Build
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -S main
-        cmake --build build
+        cmake --preset Release
+        cmake --build build/release
     
     - name: Run Tests
-      run: ctest --test-dir build --output-on-failure -R "^crud$|^greens$"
+      run: |
+        ./build/release/main/gd/crud
+        ./build/release/main/gd/greens -g 5 -b 10 -c 30 -o 50

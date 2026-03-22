@@ -1,7 +1,7 @@
 <h1 align=center><code>C⊕rdoba</code></h1>
 <div align=center>
 
-[![Version](https://img.shields.io/github/v/tag/perplexedpigmy/cordoba?label=Version&pattern=v(.+))](https://github.com/perplexedpigmy/cordoba/releases)
+[![Version](<https://img.shields.io/github/v/tag/perplexedpigmy/cordoba?label=Version&pattern=v(.+)>)](https://github.com/perplexedpigmy/cordoba/releases)
 [![Build](https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml/badge.svg)](https://github.com/perplexedpigmy/cordoba/actions)
 [![License](https://img.shields.io/badge/license-CC0-blue.svg)](LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B23)
@@ -12,7 +12,7 @@
 
 <p float="left">
   <img src="img/logo.svg" width="150" height="150" align="left" style="margin-right: 20px;"/>
-  <strong>C⊕rdoba</strong> is a lightweight C++ library for managing versioned NoSQL
+  <strong>⊕rdoba</strong> is a lightweight C++ library for managing versioned NoSQL
   documents. Like the Spanish city famous for its libraries, C⊕rdoba can store, update
   and read data, better known in the Andalusian dialect as
   <a href="https://en.wikipedia.org/wiki/Create,_read,_update_and_delete">CRUD</a>. Unlike
@@ -43,18 +43,18 @@ performance as a DB backend.
 
 ```
 cordoba/
-├── CMakeLists.txt          # Root CMake with BUILD_APPS option
+├── CMakeLists.txt          # Root CMake with gd_BUILD_APPS option
 ├── CMakePresets.json       # CMake presets (Debug, Release, etc.)
 ├── VERSION                 # Version file (0.1.0)
 ├── cmake/                  # CMake helpers
-│   ├── CPM.cmake          # CPM package manager
+│   ├── CPM.cmake           # CPM package manager
 │   └── CordobaConfig*.cmake.in  # Package config templates
 ├── gd/                     # Library source
-│   ├── inc/gd/            # Public headers
-│   ├── src/               # Implementation
-│   └── test/              # Unit tests (crud.cpp, greens.cpp)
+│   ├── inc/gd/             # Public headers
+│   ├── src/                # Implementation
+│   └── test/               # Unit tests (crud.cpp, greens.cpp)
 ├── examples/               # Example executables (speed.cpp, example.cpp)
-└── .devbox/               # Devbox configuration
+└── .devbox/                # Devbox configuration
 ```
 
 ---
@@ -72,7 +72,7 @@ C⊕rdoba requires a modern C++ toolchain with C++20/23 support:
 | libssl-dev           | system  | SSL/TLS development files               |
 | libcurl4-openssl-dev | system  | HTTP client library development files   |
 | just                 | latest  | Task runner (optional)                  |
-| valgrind             | latest  | Memory checker (optional)                |
+| valgrind             | latest  | Memory checker (optional)               |
 
 ### Debian/Ubuntu
 
@@ -119,8 +119,8 @@ include(cmake/CPM.cmake)
 # Option 2: Let CPM download CPM.cmake automatically
 # CPMAddPackage("gh:cpm-cmake/CPM.cmake@0.42.1")
 
-# Set BUILD_APPS OFF to skip building tests and examples
-set(gd_BUILD_APPS OFF)
+# Optionally set gd_BUILD_APPS ON to build tests and examples
+set(gd_BUILD_APPS ON)
 
 # Fetch C⊕rdoba from GitHub
 CPMAddPackage("gh:perplexedpigmy/cordoba@0.2.0")
@@ -135,13 +135,14 @@ target_compile_features(your_app PRIVATE cxx_std_23)
 
 #### CPM Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `gd_BUILD_APPS` | `OFF` | Set to `ON` to build tests/examples (not recommended for consumers) |
+| Option          | Default | Description                                                         |
+| --------------- | ------- | ------------------------------------------------------------------- |
+| `gd_BUILD_APPS` | `OFF`   | Set to `ON` to build tests/examples (not recommended for consumers) |
 
 #### What CPM Fetches
 
 When you add C⊕rdoba via CPM, it automatically fetches:
+
 - **libgit2 v1.4.3** - Git library used by C⊕rdoba
 - **spdlog** - Logging library
 - **Catch2** - Testing framework (only if `gd_BUILD_APPS=ON`)
@@ -173,7 +174,7 @@ git clone https://github.com/perplexedpigmy/cordoba
 cd cordoba
 
 # Configure with CMake (or use presets)
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=ON
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -Dgd_BUILD_APPS=ON
 
 # Build
 cmake --build build
@@ -197,13 +198,41 @@ devbox run cmake --build build/release
 
 #### Conan
 
-Conan support is not yet available. To track progress, see
-[Issue #XX](https://github.com/perplexedpigmy/cordoba/issues).
+Conan 2.x support is available. Add this to your `conanfile.txt`:
 
-#### Bazel
+```ini
+[requires]
+cordoba/0.2.0
 
-Bazel support is not yet available. To track progress, see
-[Issue #XX](https://github.com/perplexedpigmy/cordoba/issues).
+[generators]
+CMakeToolchain
+CMakeDeps
+
+[options]
+cordoba/*:build_apps=False
+```
+
+Or in your `conanfile.py`:
+
+```python
+from conan import ConanFile
+
+class MyProject(ConanFile):
+    requires = "cordoba/0.2.0"
+    settings = "os", "compiler", "build_type", "arch"
+
+    def requirements(self):
+        self.requires("cordoba/0.2.0")
+```
+
+Then in your `CMakeLists.txt`:
+
+```cmake
+find_package(cordoba REQUIRED)
+target_link_libraries(your_app PRIVATE cordoba::gd)
+```
+
+**Note:** Requires GCC 14+ with C++23 support.
 
 ---
 
@@ -213,14 +242,15 @@ Bazel support is not yet available. To track progress, see
 
 The project uses CMake presets for consistent builds across environments.
 
-| Preset | Description |
-|--------|-------------|
-| `Debug` | Debug build with symbols |
-| `DebugSanitize` | Debug build with sanitizers enabled |
-| `Release` | Optimized release build |
-| `ReleaseSanitize` | Release build with sanitizers |
+| Preset            | Description                         |
+| ----------------- | ----------------------------------- |
+| `Debug`           | Debug build with symbols            |
+| `DebugSanitize`   | Debug build with sanitizers enabled |
+| `Release`         | Optimized release build             |
+| `ReleaseSanitize` | Release build with sanitizers       |
 
 **List available presets:**
+
 ```bash
 cmake --list-presets
 ```
@@ -228,11 +258,13 @@ cmake --list-presets
 ### Building
 
 **Using just (recommended):**
+
 ```bash
 devbox run just build Release
 ```
 
 **Using just with other presets:**
+
 ```bash
 devbox run just build Debug
 devbox run just build DebugSanitize
@@ -240,6 +272,7 @@ devbox run just build ReleaseSanitize
 ```
 
 **Building manually:**
+
 ```bash
 cmake --preset Release
 cmake --build build/release
@@ -248,6 +281,7 @@ cmake --build build/release
 ### Testing
 
 **Run all just commands:**
+
 ```bash
 devbox run just test     # Run unit tests (crud)
 devbox run just stress   # Run stress tests (greens)
@@ -255,6 +289,7 @@ devbox run just bench    # Run performance benchmark (speed)
 ```
 
 **Run tests manually:**
+
 ```bash
 ./build/release/gd/crud            # Unit tests
 ./build/release/gd/greens -g 5 -b 10 -c 30 -o 50  # Stress test
@@ -265,6 +300,7 @@ devbox run just bench    # Run performance benchmark (speed)
 ### Memory Checking
 
 Run valgrind memcheck on any executable:
+
 ```bash
 devbox run valgrind --leak-check=full ./build/release/gd/crud
 devbox run valgrind --leak-check=full ./build/release/gd/greens
@@ -585,7 +621,7 @@ doubled the agents the first time, only the 2nd time.
 Let's dig dipper, what if we kept the number of agents static, and played with
 ops?
 
-| Num agents | Ops/Commit | Num Commits | Total Ops |  real  |  user  |  sys   | Ops/sec |
+| Num agents | Ops/Commit | Num Commits | Total Ops |  real  |  user  |  sys   | Ops/sec  |
 | :--------: | :--------: | :---------: | :-------: | :----: | :----: | :----: | :------: |
 |     10     |     20     |     30      |   6,000   | 2.071s | 1.595s | 1.618s | 2,897.15 |
 |     10     |     40     |     30      |  12,000   | 4.200s | 3.758s | 3.451s | 2,857.14 |

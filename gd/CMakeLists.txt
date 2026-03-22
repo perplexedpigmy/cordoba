@@ -49,9 +49,8 @@ include(CheckCCompilerFlag)
 check_c_compiler_flag(-Wno-incompatible-pointer-types SUPPRESS_INCOMPATIBLE_PT_WARNING)
 check_c_compiler_flag(-Wno-misleading-indentation SUPPRESS_MISLEADING_INDENTATION)
 
-# Fetch libgit2 v1.4.3 (last version with 'git2' static library target)
-# v1.5+ switched to OBJECT library which has linking issues
-CPMAddPackage("gh:libgit2/libgit2@1.4.3")
+# Fetch libgit2 v1.9.1 (v1.5+ uses OBJECT library)
+CPMAddPackage("gh:libgit2/libgit2@1.9.1")
 
 # Link against libgit2
 # v1.4.x uses 'git2' target
@@ -65,9 +64,13 @@ if(TARGET git2)
     target_compile_options(git2 PRIVATE -Wno-misleading-indentation)
   endif()
   target_link_libraries(gd PRIVATE git2)
+elseif(TARGET libgit2package)
+  # v1.5+ uses 'libgit2package' as the complete library
+  message(STATUS "Linking against libgit2package (libgit2 v1.5+)")
+  target_link_libraries(gd PRIVATE libgit2package)
 elseif(TARGET libgit2)
-  # v1.5+ uses 'libgit2' OBJECT library
-  message(STATUS "Linking against libgit2 OBJECT library")
+  # fallback to OBJECT library (incomplete, may have link errors)
+  message(STATUS "Linking against libgit2 OBJECT library (incomplete)")
   target_link_libraries(gd PRIVATE libgit2)
 else()
   message(FATAL_ERROR "Could not find libgit2 target")

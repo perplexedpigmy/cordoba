@@ -41,7 +41,7 @@ class CordobaConan(ConanFile):
         cmake_layout(self)
 
     def requirements(self):
-        self.requires("libgit2/1.4.3")
+        self.requires("libgit2/1.9.1")
         self.requires("spdlog/1.15.0")
 
     def generate(self):

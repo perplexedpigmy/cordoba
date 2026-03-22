@@ -5,7 +5,7 @@
 [![Build](https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml/badge.svg)](https://github.com/perplexedpigmy/cordoba/actions)
 [![License](https://img.shields.io/badge/license-CC0-blue.svg)](LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B23)
-[![libgit2](https://img.shields.io/badge/libgit2-1.4-blue.svg)](https://libgit2.org/)
+[![libgit2](https://img.shields.io/badge/libgit2-1.9-blue.svg)](https://libgit2.org/)
 [![Contributor](https://img.shields.io/github/contributors/perplexedpigmy/cordoba)](https://github.com/perplexedpigmy/cordoba/graphs/contributors)
 
 </div>
@@ -45,7 +45,7 @@ performance as a DB backend.
 cordoba/
 ├── CMakeLists.txt          # Root CMake with gd_BUILD_APPS option
 ├── CMakePresets.json       # CMake presets (Debug, Release, etc.)
-├── VERSION                 # Version file (0.1.0)
+├── VERSION                 # Version file (0.3.0)
 ├── cmake/                  # CMake helpers
 │   ├── CPM.cmake           # CPM package manager
 │   └── CordobaConfig*.cmake.in  # Package config templates
@@ -123,7 +123,7 @@ include(cmake/CPM.cmake)
 set(gd_BUILD_APPS ON)
 
 # Fetch C⊕rdoba from GitHub
-CPMAddPackage("gh:perplexedpigmy/cordoba@0.2.0")
+CPMAddPackage("gh:perplexedpigmy/cordoba@0.3.0")
 
 # Your executable links against the gd library
 add_executable(your_app src/your_app.cpp)
@@ -143,7 +143,7 @@ target_compile_features(your_app PRIVATE cxx_std_23)
 
 When you add C⊕rdoba via CPM, it automatically fetches:
 
-- **libgit2 v1.4.3** - Git library used by C⊕rdoba
+- **libgit2 v1.9.1** - Git library used by C⊕rdoba
 - **spdlog** - Logging library
 - **Catch2** - Testing framework (only if `gd_BUILD_APPS=ON`)
 - **CLI11** - Command-line parsing (only if `gd_BUILD_APPS=ON`)
@@ -202,7 +202,7 @@ Conan 2.x support is available. Add this to your `conanfile.txt`:
 
 ```ini
 [requires]
-cordoba/0.2.0
+cordoba/0.3.0
 
 [generators]
 CMakeToolchain
@@ -218,11 +218,11 @@ Or in your `conanfile.py`:
 from conan import ConanFile
 
 class MyProject(ConanFile):
-    requires = "cordoba/0.2.0"
+    requires = "cordoba/0.3.0"
     settings = "os", "compiler", "build_type", "arch"
 
     def requirements(self):
-        self.requires("cordoba/0.2.0")
+        self.requires("cordoba/0.3.0")
 ```
 
 Then in your `CMakeLists.txt`:
@@ -309,6 +309,44 @@ devbox run valgrind --leak-check=full ./build/release/examples/example
 ```
 
 All executables pass valgrind with **0 errors** and **0 leaks**.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Public API (gd/)                       │
+│  ┌──────────────┐  ┌─────────────┐  ┌───────────────────┐  │
+│  │ select       │  │ add/del/mv  │  │ commit/rollback   │  │
+│  │ Repository   │→ │ operations  │→ │ operations        │  │
+│  └──────────────┘  └─────────────┘  └───────────────────┘  │
+│         ↓                  ↓                  ↓              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Context (chainable) - holds repo, ref, updates     │   │
+│  └─────────────────────────────────────────────────────┘   │
+│         ↓                                                   │
+│  ┌──────────────┐  ┌─────────────┐  ┌───────────────────┐  │
+│  │ TreeCollector│  │ Guard<T>    │  │ Result<T> / Error │  │
+│  │ (batched)    │  │ (RAII)      │  │ (std::expected)   │  │
+│  └──────────────┘  └─────────────┘  └───────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    libgit2 v1.9.1                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `Context` | Chainable context holding repository, reference, and pending updates |
+| `TreeCollector` | Batches updates per directory for efficient tree construction |
+| `Guard<T>` | RAII wrapper for all libgit2 C resources |
+| `Result<T>` / `Error` | `std::expected`-based error handling without exceptions |
+| `shorthand` | Operator overloads (`>>`, `\|\|`) for fluent chaining |
 
 ---
 

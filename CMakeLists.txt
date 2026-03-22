@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
-project(cordoba VERSION 0.1.0)
+project(cordoba VERSION 0.3.0)
 
 unset(ENV{GIT_DIR})
 
@@ -10,6 +10,12 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
 
 # Build tests/examples OFF by default (consumers don't need them)
 option(gd_BUILD_APPS "Build example/test executables" OFF)
+
+# libgit2 configuration - disable problematic features
+set(USE_NSEC OFF CACHE BOOL "Support nanosecond precision file mtimes" FORCE)
+set(BUILD_CLAR OFF CACHE BOOL "Build clar tests" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build examples" FORCE)
+set(BUILD_FUZZERS OFF CACHE BOOL "Build fuzzers" FORCE)
 
 # Dependencies - only needed when building apps
 if(gd_BUILD_APPS)

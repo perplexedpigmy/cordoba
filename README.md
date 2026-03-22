@@ -51,11 +51,14 @@ C⊕rdoba requires a modern C++ toolchain with C++20/23 support:
 | git                  | latest  | Version control                         |
 | libssl-dev           | system  | SSL/TLS development files               |
 | libcurl4-openssl-dev | system  | HTTP client library development files   |
+| just                 | latest  | Task runner (optional)                  |
 
 ### Debian/Ubuntu
 
 ```bash
 apt install gcc-14 cmake ninja-build git libssl-dev libcurl4-openssl-dev
+# Optional: just for convenient task runner
+apt install just
 ```
 
 ### Fedora/RHEL
@@ -104,7 +107,7 @@ Otherwise, it's as simple as cloning the project and running a cmake >= 3.14:
 ```bash
 git clone https://github.com/perplexedpigmy/cordoba
 cd cordoba
-cmake -DCMAKE_BUILD_TYPE=Release -S . -B build/release
+cmake --preset Release
 cmake --build build/release
 ```
 
@@ -115,24 +118,46 @@ includes a `devbox.json` with all build dependencies. Run:
 
 ```bash
 devbox install
-devbox run cmake -DCMAKE_BUILD_TYPE=Release -S . -B build/release
+devbox run cmake --preset Release
 devbox run cmake --build build/release
 ```
 
-#### Running Executables
+---
 
+## Development
+
+### CMake Presets
+
+The project uses CMake presets for consistent builds across environments.
+
+| Preset | Description |
+|--------|-------------|
+| `Debug` | Debug build with symbols |
+| `DebugSanitize` | Debug build with sanitizers enabled |
+| `Release` | Optimized release build |
+| `ReleaseSanitize` | Release build with sanitizers |
+
+**List available presets:**
 ```bash
-# Run tests
-devbox run ./build/release/main/gd/crud
+cmake --list-presets
+```
 
-# Run benchmark
-devbox run ./build/release/main/gd/greens -g 5 -b 10 -c 30 -o 50
+**Build with just:**
+```bash
+devbox run just build Release
+```
 
-# Run timing example
-devbox run ./build/release/main/speed
+**Build manually:**
+```bash
+cmake --preset Release
+cmake --build build/release
+```
 
-# Run example
-devbox run ./build/release/main/example
+**Run tests with just:**
+```bash
+devbox run just test    # Run unit tests
+devbox run just stress  # Run stress test
+devbox run just bench   # Run performance benchmark
 ```
 
 ---

@@ -8,8 +8,8 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
     STRINGS Release Debug
 )
 
-# Library builds tests by default (OFF for consumers via CPM)
-option(gd_BUILD_APPS "Build example/test executables" ON)
+# Build tests/examples OFF by default (consumers don't need them)
+option(gd_BUILD_APPS "Build example/test executables" OFF)
 
 # Dependencies - only needed when building apps
 if(gd_BUILD_APPS)

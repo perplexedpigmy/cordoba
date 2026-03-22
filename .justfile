@@ -4,7 +4,7 @@ REPO := `find /tmp/test/ -maxdepth 1 -type d -printf "%T+ %p\n" | sort -r | head
 # Build using CMake preset. Usage: just build Release
 build preset:
   #!/usr/bin/bash
-  cmake --preset {{preset}}
+  cmake --preset {{preset}} -Wno-dev
   case "{{preset}}" in
     Debug) cmake --build build/debug ;;
     Release) cmake --build build/release ;;

@@ -123,7 +123,7 @@ include(cmake/CPM.cmake)
 set(gd_BUILD_APPS OFF)
 
 # Fetch C⊕rdoba from GitHub
-CPMAddPackage("gh:perplexedpigmy/cordoba@0.1.0")
+CPMAddPackage("gh:perplexedpigmy/cordoba@0.2.0")
 
 # Your executable links against the gd library
 add_executable(your_app src/your_app.cpp)

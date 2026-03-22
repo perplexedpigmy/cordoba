@@ -5,7 +5,7 @@
 [![Build](https://github.com/perplexedpigmy/cordoba/actions/workflows/build.yaml/badge.svg)](https://github.com/perplexedpigmy/cordoba/actions)
 [![License](https://img.shields.io/badge/license-CC0-blue.svg)](LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B23)
-[![libgit2](https://img.shields.io/badge/libgit2-1.3-blue.svg)](https://libgit2.org/)
+[![libgit2](https://img.shields.io/badge/libgit2-1.4-blue.svg)](https://libgit2.org/)
 [![Contributor](https://img.shields.io/github/contributors/perplexedpigmy/cordoba)](https://github.com/perplexedpigmy/cordoba/graphs/contributors)
 
 </div>
@@ -39,6 +39,26 @@ performance as a DB backend.
 
 ---
 
+## Project Structure
+
+```
+cordoba/
+├── CMakeLists.txt          # Root CMake with BUILD_APPS option
+├── CMakePresets.json       # CMake presets (Debug, Release, etc.)
+├── VERSION                 # Version file (0.1.0)
+├── cmake/                  # CMake helpers
+│   ├── CPM.cmake          # CPM package manager
+│   └── CordobaConfig*.cmake.in  # Package config templates
+├── gd/                     # Library source
+│   ├── inc/gd/            # Public headers
+│   ├── src/               # Implementation
+│   └── test/              # Unit tests (crud.cpp, greens.cpp)
+├── examples/               # Example executables (speed.cpp, example.cpp)
+└── .devbox/               # Devbox configuration
+```
+
+---
+
 ## Build Dependencies
 
 C⊕rdoba requires a modern C++ toolchain with C++20/23 support:
@@ -52,19 +72,12 @@ C⊕rdoba requires a modern C++ toolchain with C++20/23 support:
 | libssl-dev           | system  | SSL/TLS development files               |
 | libcurl4-openssl-dev | system  | HTTP client library development files   |
 | just                 | latest  | Task runner (optional)                  |
+| valgrind             | latest  | Memory checker (optional)                |
 
 ### Debian/Ubuntu
 
 ```bash
-apt install gcc-14 cmake ninja-build git libssl-dev libcurl4-openssl-dev
-# Optional: just for convenient task runner
-apt install just
-```
-
-### Fedora/RHEL
-
-```bash
-dnf install gcc cmake ninja-build git openssl-devel libcurl-devel
+apt install gcc-14 cmake ninja-build git libssl-dev libcurl4-openssl-dev just valgrind
 ```
 
 ### Using Devbox
@@ -91,27 +104,82 @@ environment has the toolchain listed above installed.
 
 ## Installation
 
-### Using cmake installers
+### Using CPM (CMake Package Manager)
 
-Lightweight cmake package managers like
-[CPM](https://github.com/cpm-cmake/CPM.cmake) can be used to build and use the
-library as a dependency.
+[CPM](https://github.com/cpm-cmake/CPM.cmake) is a lightweight CMake package
+manager that fetches and builds dependencies. Add this to your `CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.14)
+project(your_project)
+
+# Option 1: Include CPM.cmake directly in your project
+include(cmake/CPM.cmake)
+
+# Option 2: Let CPM download CPM.cmake automatically
+# CPMAddPackage("gh:cpm-cmake/CPM.cmake@0.42.1")
+
+# Set BUILD_APPS OFF to skip building tests and examples
+set(gd_BUILD_APPS OFF)
+
+# Fetch C⊕rdoba from GitHub
+CPMAddPackage("gh:perplexedpigmy/cordoba@0.1.0")
+
+# Your executable links against the gd library
+add_executable(your_app src/your_app.cpp)
+target_link_libraries(your_app PRIVATE gd::gd)
+
+# C++23 is required
+target_compile_features(your_app PRIVATE cxx_std_23)
+```
+
+#### CPM Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `gd_BUILD_APPS` | `OFF` | Set to `ON` to build tests/examples (not recommended for consumers) |
+
+#### What CPM Fetches
+
+When you add C⊕rdoba via CPM, it automatically fetches:
+- **libgit2 v1.4.2** - Git library used by C⊕rdoba
+- **spdlog** - Logging library
+- **Catch2** - Testing framework (only if `gd_BUILD_APPS=ON`)
+- **CLI11** - Command-line parsing (only if `gd_BUILD_APPS=ON`)
+
+#### Consumer Projects
+
+For a complete example of a CPM-based consumer project, see
+[`/tmp/test/consumer/CMakeLists.txt`](/tmp/test/consumer/CMakeLists.txt).
+
+### Using cmake installers (with CPM.cmake in your project)
+
+If your project already has `cmake/CPM.cmake`:
+
+```cmake
+# In your cmake/CPM.cmake or top-level CMakeLists.txt
+set(gd_BUILD_APPS OFF)  # Don't build tests/examples
+CPMAddPackage("gh:perplexedpigmy/cordoba")
+
+target_link_libraries(your_app PRIVATE gd::gd)
+```
 
 ### Building from source
 
-If you use devcontainer, there is a `.devcontainer` directory with all needed to
-start building the library.
-
-Otherwise, it's as simple as cloning the project and running a cmake >= 3.14:
+**Prerequisites:** GCC 14+, CMake 3.14+, Ninja or Make
 
 ```bash
 git clone https://github.com/perplexedpigmy/cordoba
 cd cordoba
-cmake --preset Release
-cmake --build build/release
+
+# Configure with CMake (or use presets)
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=ON
+
+# Build
+cmake --build build
 ```
 
-### Using Devbox
+### Using Devbox (Recommended)
 
 If you have [Devbox](https://www.jetify.com/devbox/) installed, the project
 includes a `devbox.json` with all build dependencies. Run:
@@ -121,6 +189,21 @@ devbox install
 devbox run cmake --preset Release
 devbox run cmake --build build/release
 ```
+
+### Other Package Managers
+
+> **Note:** The following package managers are not yet implemented.
+> Contributions welcome!
+
+#### Conan
+
+Conan support is not yet available. To track progress, see
+[Issue #XX](https://github.com/perplexedpigmy/cordoba/issues).
+
+#### Bazel
+
+Bazel support is not yet available. To track progress, see
+[Issue #XX](https://github.com/perplexedpigmy/cordoba/issues).
 
 ---
 
@@ -142,23 +225,54 @@ The project uses CMake presets for consistent builds across environments.
 cmake --list-presets
 ```
 
-**Build with just:**
+### Building
+
+**Using just (recommended):**
 ```bash
 devbox run just build Release
 ```
 
-**Build manually:**
+**Using just with other presets:**
+```bash
+devbox run just build Debug
+devbox run just build DebugSanitize
+devbox run just build ReleaseSanitize
+```
+
+**Building manually:**
 ```bash
 cmake --preset Release
 cmake --build build/release
 ```
 
-**Run tests with just:**
+### Testing
+
+**Run all just commands:**
 ```bash
-devbox run just test    # Run unit tests
-devbox run just stress  # Run stress test
-devbox run just bench   # Run performance benchmark
+devbox run just test     # Run unit tests (crud)
+devbox run just stress   # Run stress tests (greens)
+devbox run just bench    # Run performance benchmark (speed)
 ```
+
+**Run tests manually:**
+```bash
+./build/release/gd/crud            # Unit tests
+./build/release/gd/greens -g 5 -b 10 -c 30 -o 50  # Stress test
+./build/release/examples/speed     # Performance benchmark
+./build/release/examples/example   # Example application
+```
+
+### Memory Checking
+
+Run valgrind memcheck on any executable:
+```bash
+devbox run valgrind --leak-check=full ./build/release/gd/crud
+devbox run valgrind --leak-check=full ./build/release/gd/greens
+devbox run valgrind --leak-check=full ./build/release/examples/speed
+devbox run valgrind --leak-check=full ./build/release/examples/example
+```
+
+All executables pass valgrind with **0 errors** and **0 leaks**.
 
 ---
 
@@ -437,12 +551,7 @@ yourself):
 
 ```sh
 # 5 concurrent agents x 30 Commits x 50 operations = 7,500 Operations = 3,676.47 per second
-time ./build/release/main/gd/greens -g 5 -b 10 -c 30 -o 50
-Success
-
-real    0m2.046s
-user    0m1.473s
-sys     0m1.637s
+devbox run just stress
 ```
 
 Let's draw a table with out results when num agents is our variable.
@@ -476,7 +585,7 @@ doubled the agents the first time, only the 2nd time.
 Let's dig dipper, what if we kept the number of agents static, and played with
 ops?
 
-| Num agents | Ops/Commit | Num Commits | Total Ops |  real  |  user  |  sys   | Ops/sec  |
+| Num agents | Ops/Commit | Num Commits | Total Ops |  real  |  user  |  sys   | Ops/sec |
 | :--------: | :--------: | :---------: | :-------: | :----: | :----: | :----: | :------: |
 |     10     |     20     |     30      |   6,000   | 2.071s | 1.595s | 1.618s | 2,897.15 |
 |     10     |     40     |     30      |  12,000   | 4.200s | 3.758s | 3.451s | 2,857.14 |
@@ -546,8 +655,14 @@ under this license.
 ### Getting started
 
 C⊕rdoba is written in modern C++ and requires gcc-14 or later. All new features
-must be covered by unit or integration tests, all tests can be found at
-`main/gd/test`, and should be executed prior to the pull request.
+must be covered by unit or integration tests. Run tests with:
+
+```bash
+devbox run just test    # Unit tests (74 assertions)
+devbox run just stress  # Stress tests
+```
+
+All tests should be executed and pass before submitting a pull request.
 
 ---
 

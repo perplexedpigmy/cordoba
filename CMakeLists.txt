@@ -1,21 +1,28 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
-project(cordoba)
+project(cordoba VERSION 0.1.0)
 
 unset(ENV{GIT_DIR})
-
-# set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_DEBUG_MODE 1)
 
 # Configuration support
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
     STRINGS Release Debug
 )
 
-enable_testing()
+# Library builds tests by default (OFF for consumers via CPM)
+option(gd_BUILD_APPS "Build example/test executables" ON)
 
-# Relegate this configuration to Presets
-# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Dependencies - only needed when building apps
+if(gd_BUILD_APPS)
+  enable_testing()
+endif()
 
-add_subdirectory(main)
+# Library
+add_subdirectory(gd)
+
+# Examples/apps - only when gd_BUILD_APPS is ON
+if(gd_BUILD_APPS)
+  add_subdirectory(examples)
+endif()
 
 # print available variables
 function(dump_cmake_variables)

@@ -1,0 +1,21 @@
+# CordobaConfig.cmake.in
+# CMake package config template for Cordoba library
+#
+# Usage:
+#   find_package(Cordoba REQUIRED)
+#   target_link_libraries(my_target PRIVATE Cordoba::gd)
+
+@PACKAGE_INIT@
+
+include(CMakeFindFrameworks)
+set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH TRUE)
+set(CMAKE_FIND_USE_SYSTEM_PATH TRUE)
+set(CMAKE_FIND_USE_CMAKE_PATH TRUE)
+set(CMAKE_FIND_USE_CMAKE_VARIABLE_PATH TRUE)
+
+# Alias gd::gd for convenience
+if(TARGET gd AND NOT TARGET Cordoba::gd)
+  add_library(Cordoba::gd ALIAS gd)
+endif()
+
+check_required_components("Cordoba")

@@ -49,9 +49,9 @@ include(CheckCCompilerFlag)
 check_c_compiler_flag(-Wno-incompatible-pointer-types SUPPRESS_INCOMPATIBLE_PT_WARNING)
 check_c_compiler_flag(-Wno-misleading-indentation SUPPRESS_MISLEADING_INDENTATION)
 
-# Fetch libgit2 v1.4.2 (last version with 'git2' static library target)
+# Fetch libgit2 v1.4.3 (last version with 'git2' static library target)
 # v1.5+ switched to OBJECT library which has linking issues
-CPMAddPackage("gh:libgit2/libgit2@1.4.2")
+CPMAddPackage("gh:libgit2/libgit2@1.4.3")
 
 # Link against libgit2
 # v1.4.x uses 'git2' target

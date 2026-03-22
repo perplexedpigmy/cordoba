@@ -142,7 +142,7 @@ target_compile_features(your_app PRIVATE cxx_std_23)
 #### What CPM Fetches
 
 When you add C⊕rdoba via CPM, it automatically fetches:
-- **libgit2 v1.4.2** - Git library used by C⊕rdoba
+- **libgit2 v1.4.3** - Git library used by C⊕rdoba
 - **spdlog** - Logging library
 - **Catch2** - Testing framework (only if `gd_BUILD_APPS=ON`)
 - **CLI11** - Command-line parsing (only if `gd_BUILD_APPS=ON`)
